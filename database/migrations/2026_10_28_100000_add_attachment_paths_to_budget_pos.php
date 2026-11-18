@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (Schema::hasTable('budget_pos') && !Schema::hasColumn('budget_pos', 'attachment_paths')) {
+            Schema::table('budget_pos', function (Blueprint $table) {
+                $table->json('attachment_paths')->nullable()->after('attachment_path');
+            });
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        if (Schema::hasTable('budget_pos') && Schema::hasColumn('budget_pos', 'attachment_paths')) {
+            Schema::table('budget_pos', function (Blueprint $table) {
+                $table->dropColumn('attachment_paths');
+            });
+        }
+    }
+};
+

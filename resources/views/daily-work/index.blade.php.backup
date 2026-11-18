@@ -1,0 +1,3491 @@
+@extends('layouts.app', [
+    'title' => 'Daily Work',
+    'activeModule' => 'daily-work'
+])
+
+@push('styles')
+<style>
+    /* Summary Stat Cards Grid */
+    .stats-grid-3, .stats-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .stat-card-daily {
+        background: #ffffff;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        height: 100%;
+        min-height: 86px;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        user-select: none;
+        position: relative;
+    }
+
+    .stat-card-daily:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+        border-color: #0d9488;
+    }
+
+    .stat-card-daily:focus-visible {
+        outline: 2px solid #0d9488;
+        outline-offset: 2px;
+    }
+
+    .stat-card-daily .stat-icon-wrapper {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+    .stat-icon-today {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .stat-icon-company {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    .stat-icon-history {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .stat-card-daily .stat-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .stat-card-daily .stat-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 3px;
+        line-height: 1.25;
+    }
+
+    .stat-card-daily .stat-number {
+        font-size: 24px;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.1;
+    }
+
+    .stat-card-daily .stat-caption {
+        font-size: 11px;
+        color: #94a3b8;
+        margin-top: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stat-arrow {
+        transition: all 0.18s ease;
+        font-size: 14px;
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        padding-left: 4px;
+    }
+
+    .stat-card-daily:hover .stat-arrow {
+        color: #0d9488;
+        transform: translateX(3px);
+    }
+
+    /* Company Distribution Card (Full-width, Compact & Balanced) */
+    .company-chart-card {
+        background: #ffffff;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 16px 18px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        margin-bottom: 14px;
+    }
+
+    .company-chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+    }
+
+    .company-chart-body {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .company-chart-body.is-empty {
+        display: block;
+    }
+
+    .pie-canvas-box {
+        position: relative;
+        height: 155px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pie-empty-state {
+        text-align: center;
+        color: #64748b;
+        padding: 16px 12px;
+        background: #f8fafc;
+        border: 1px dashed #e2e8f0;
+        border-radius: 8px;
+    }
+
+    .pie-legend-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 10px;
+        align-content: center;
+    }
+
+    .pie-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #334155;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 12px;
+    }
+
+    .pie-legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .pie-legend-val {
+        margin-left: auto;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        padding-left: 6px;
+    }
+
+    /* Table & Filter Bar */
+    .table-card-daily {
+        background: #ffffff;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 16px 18px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        margin-bottom: 20px;
+    }
+
+    .filter-bar-daily {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 14px;
+    }
+
+    .filter-grid-daily {
+        display: grid;
+        grid-template-columns: 195px 160px auto 1fr auto;
+        gap: 10px;
+        align-items: flex-end;
+    }
+
+    .date-range-filter-container {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 6px;
+    }
+
+    .date-range-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .date-range-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 4px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .date-range-input-wrap {
+        position: relative;
+        width: 142px;
+    }
+
+    .date-range-separator {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #64748b;
+        white-space: nowrap;
+        user-select: none;
+        align-self: flex-end;
+        margin-bottom: 9px;
+    }
+
+    /* Master Data Action Buttons */
+    .btn-master-teal {
+        background-color: #0d9488 !important;
+        border-color: #0d9488 !important;
+        color: #ffffff !important;
+        font-weight: 600;
+        font-size: 12px;
+        height: 36px;
+        padding: 0 16px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        transition: all 0.15s ease-in-out;
+        box-shadow: 0 1px 2px rgba(13, 148, 136, 0.15);
+    }
+    .btn-master-teal:hover, .btn-master-teal:focus {
+        background-color: #0f766e !important;
+        border-color: #0f766e !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(13, 148, 136, 0.28);
+        transform: translateY(-1px);
+    }
+    .btn-master-teal:active {
+        background-color: #115e59 !important;
+        border-color: #115e59 !important;
+        color: #ffffff !important;
+        transform: translateY(0);
+    }
+
+    .btn-master-blue {
+        background-color: #2563eb !important;
+        border-color: #2563eb !important;
+        color: #ffffff !important;
+        font-weight: 600;
+        font-size: 12px;
+        height: 36px;
+        padding: 0 16px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        transition: all 0.15s ease-in-out;
+        box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+    }
+    .btn-master-blue:hover, .btn-master-blue:focus {
+        background-color: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(37, 99, 235, 0.28);
+        transform: translateY(-1px);
+    }
+    .btn-master-blue:active {
+        background-color: #1e40af !important;
+        border-color: #1e40af !important;
+        color: #ffffff !important;
+        transform: translateY(0);
+    }
+
+    .btn-teal {
+        background-color: #0d9488 !important;
+        border-color: #0d9488 !important;
+        color: #ffffff !important;
+    }
+    .btn-teal:hover, .btn-teal:focus {
+        background-color: #0f766e !important;
+        border-color: #0f766e !important;
+        color: #ffffff !important;
+    }
+
+    .mode-pill-group {
+        display: inline-flex;
+        background: #f1f5f9;
+        padding: 3px;
+        border-radius: 8px;
+        gap: 3px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .mode-pill-btn {
+        border: none;
+        background: transparent;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 5px 12px;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .mode-pill-btn:hover:not(.active) {
+        color: #0f172a;
+    }
+
+    .mode-pill-btn.active {
+        background: #0d9488;
+        color: #ffffff;
+        box-shadow: 0 1px 2px rgba(13, 148, 136, 0.25);
+    }
+
+    /* Clean & Consistent Table Badges */
+    .badge-company {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+        font-weight: 600;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+
+    .badge-sika {
+        background: #f0fdfa;
+        color: #0f766e;
+        border: 1px solid #99f6e4;
+        font-weight: 600;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+
+    .company-parent-subtext {
+        font-size: 10.5px;
+        color: #64748b;
+        font-weight: 500;
+        margin-top: 3px;
+        line-height: 1.1;
+        letter-spacing: 0.2px;
+    }
+
+    .btn-action-complete {
+        background: #dcfce7 !important;
+        color: #16a34a !important;
+    }
+
+    .btn-action-complete:hover {
+        background: #bbf7d0 !important;
+        color: #15803d !important;
+    }
+
+    .master-tab-btn {
+        border: none;
+        background: transparent;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        padding: 8px 16px;
+        border-bottom: 2px solid transparent;
+        transition: all 0.15s;
+    }
+
+    .master-tab-btn.active {
+        color: #0d9488;
+        border-bottom-color: #0d9488;
+        background: #f0fdfa;
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 1100px) {
+        .filter-grid-daily {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    /* Hierarchical Dropdown & Tree Styling */
+    .company-tree-node {
+        border-radius: 6px;
+        transition: background-color 0.12s ease;
+    }
+    .company-tree-node:hover {
+        background-color: #f8fafc;
+    }
+    .company-tree-node.is-selected {
+        background-color: #f0fdfa;
+        color: #0f766e;
+    }
+    .company-subcon-branch {
+        border-left: 2px dashed #cbd5e1;
+        margin-left: 14px;
+        padding-left: 10px;
+    }
+    .btn-tree-chevron {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 5px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+    .btn-tree-chevron:hover {
+        background: #e2e8f0;
+        color: #1e293b;
+    }
+    .btn-tree-chevron i {
+        font-size: 11px;
+        transition: transform 0.2s ease;
+    }
+    .btn-tree-chevron.is-expanded i {
+        transform: rotate(180deg);
+    }
+    .badge-category-mini {
+        font-size: 9.5px;
+        padding: 1.5px 5px;
+        font-weight: 600;
+        border-radius: 4px;
+    }
+
+    @media (max-width: 900px) {
+        .stats-grid-3, .stats-grid-2 {
+            grid-template-columns: 1fr;
+        }
+        .company-chart-body {
+            grid-template-columns: 1fr;
+        }
+        .pie-canvas-box {
+            height: 170px;
+        }
+        .filter-grid-daily {
+            grid-template-columns: 1fr 1fr;
+            align-items: flex-end;
+        }
+        .date-range-filter-container {
+            width: 100%;
+        }
+        .date-range-item {
+            flex: 1 1 0;
+            min-width: 110px;
+        }
+        .date-range-input-wrap {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .filter-grid-daily {
+            grid-template-columns: 1fr;
+        }
+    }
+    .date-range-filter-container {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .date-range-item {
+        min-width: 0;
+    }
+    @media (max-width: 1199.98px) {
+        .filter-grid-daily {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .filter-grid-daily {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+        .date-range-filter-container {
+            display: flex !important;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 6px;
+        }
+        .date-range-item {
+            flex: 1 1 130px;
+            min-width: 0 !important;
+            width: auto;
+        }
+        .date-range-input-wrap {
+            width: 100%;
+            min-width: 0;
+        }
+        .date-range-separator {
+            display: none;
+        }
+    }
+</style>
+@endpush
+
+@section('content')
+<!-- HEADER & ACTIONS -->
+<x-module-header
+    title="Daily Work"
+    icon="bi bi-calendar2-week"
+    icon-bg="#0d9488"
+    icon-shadow="rgba(13, 148, 136, 0.25)"
+    :breadcrumbs="[
+        ['label' => 'Dashboard', 'url' => route('dashboard')],
+        ['label' => 'Daily Work'],
+    ]"
+>
+    <x-slot:actions>
+        @adminManagement
+            <button type="button" class="btn-action-primary hsse-action-primary" onclick="openAddModal()">
+                <i class="bi bi-plus-lg"></i> Tambah Pekerjaan
+            </button>
+            <button type="button" class="btn-action-outline" onclick="openMasterModal()">
+                <i class="bi bi-sliders2"></i> Kelola Pilihan Master
+            </button>
+        @endadminManagement
+        @canExportPdf
+            <button type="button" class="btn-action-outline" id="btnExportPdf" onclick="exportPDF()">
+                <i class="bi bi-file-earmark-pdf-fill text-danger"></i>
+                <span id="exportPdfBtnLabel">Export PDF Hari Ini</span>
+            </button>
+        @endcanExportPdf
+    </x-slot:actions>
+</x-module-header>
+
+<!-- STATS CARDS (INTERAKTIF & SEIMBANG) -->
+<div class="stats-grid-2">
+    <!-- Card 1: Total Pekerjaan Hari Ini -->
+    <div class="stat-card stat-card-daily stat-card-clickable" id="cardStatToday" onclick="filterByCardToday()" onkeydown="handleCardKeydown(event, filterByCardToday)" role="button" tabindex="0" title="Klik untuk melihat pekerjaan hari ini">
+        <div class="stat-icon-wrapper stat-icon-today">
+            <i class="bi bi-journal-check"></i>
+        </div>
+        <div class="stat-body">
+            <div class="stat-title" id="statTitleToday">Total Pekerjaan Hari Ini</div>
+            <div class="stat-number" id="statTotalToday">{{ $stats['total_today'] ?? 0 }}</div>
+        </div>
+        <div class="stat-arrow">
+            <i class="bi bi-chevron-right"></i>
+        </div>
+    </div>
+
+    <!-- Card 2: Perusahaan Terlibat -->
+    <div class="stat-card stat-card-daily stat-card-clickable" id="cardStatCompanies" onclick="filterByCardCompanies()" onkeydown="handleCardKeydown(event, filterByCardCompanies)" role="button" tabindex="0" title="Klik untuk melihat data per perusahaan hari ini">
+        <div class="stat-icon-wrapper stat-icon-company">
+            <i class="bi bi-building-check"></i>
+        </div>
+        <div class="stat-body">
+            <div class="stat-title">Perusahaan Terlibat</div>
+            <div class="stat-number text-success" id="statCompaniesToday">{{ $stats['companies_today'] ?? 0 }}</div>
+        </div>
+        <div class="stat-arrow">
+            <i class="bi bi-chevron-right"></i>
+        </div>
+    </div>
+</div>
+
+<!-- DISTRIBUSI PEKERJAAN PER PERUSAHAAN -->
+<div class="chart-box-card company-chart-card" style="min-height: auto;">
+    <div class="company-chart-header">
+        <div>
+            <h2 class="chart-title">Distribusi Pekerjaan per Perusahaan</h2>
+            <p class="chart-subtitle mb-0" id="pieChartSubtitle">Pekerjaan mulai hari ini ({{ \Carbon\Carbon::parse($today)->locale('id')->isoFormat('D MMMM Y') }})</p>
+        </div>
+        <span class="badge bg-teal-subtle text-teal border border-teal px-2.5 py-1" style="font-size:11.5px; font-weight:600;" id="todayPieBadge">
+            {{ $stats['total_today'] ?? 0 }} Pekerjaan
+        </span>
+    </div>
+
+    <div id="pieEmptyState" class="pie-empty-state {{ ($stats['total_today'] ?? 0) > 0 ? 'd-none' : '' }}">
+        <i class="bi bi-pie-chart text-muted d-block mb-1" style="font-size: 24px;"></i>
+        <div class="fw-semibold text-dark" id="pieEmptyTitle" style="font-size: 12.5px;">Tidak Ada Pekerjaan yang Dimulai Hari Ini</div>
+        <div class="text-muted" id="pieEmptyDesc" style="font-size: 11.5px;">Belum ada pekerjaan dengan tanggal mulai hari ini.</div>
+    </div>
+
+    <div id="companyChartContent" class="company-chart-body {{ ($stats['total_today'] ?? 0) > 0 ? '' : 'd-none' }}">
+        <div class="pie-canvas-box">
+            <canvas id="companyPieChart"></canvas>
+        </div>
+        <div class="pie-legend-grid" id="pieLegendGrid"></div>
+    </div>
+</div>
+
+<!-- SECTION: TABEL PEKERJAAN HARI INI & RIWAYAT -->
+<div class="table-card table-card-daily">
+    <div class="table-topbar flex-wrap gap-2">
+        <div>
+            <h2 class="table-section-title mb-1" id="tableHeaderTitle">Pekerjaan Hari Ini</h2>
+            <div class="text-muted" style="font-size: 11.5px;" id="tableHeaderSubtitle">
+                Menampilkan daftar pekerjaan yang aktif pada tanggal {{ \Carbon\Carbon::parse($today)->locale('id')->isoFormat('D MMMM Y') }}
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 ms-auto flex-wrap">
+            <!-- Mode Switcher: Hari Ini vs Semua Riwayat -->
+            <div class="mode-pill-group">
+                <button type="button" class="mode-pill-btn {{ ($dateMode ?? 'today') === 'today' ? 'active' : '' }}" id="btnModeToday" onclick="setMode('today')">
+                    <i class="bi bi-calendar-check"></i> Hari Ini
+                </button>
+                <button type="button" class="mode-pill-btn {{ ($dateMode ?? 'today') === 'all' ? 'active' : '' }}" id="btnModeAll" onclick="setMode('all')">
+                    <i class="bi bi-clock-history"></i> Semua Riwayat
+                </button>
+            </div>
+
+            <!-- Page Size -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted" style="font-size:11.5px">Baris:</span>
+                <select id="perPage" class="form-select form-select-sm" style="width: 65px; font-size:11.5px">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="filter-bar-daily">
+        <div class="filter-grid-daily">
+            <!-- Filter Perusahaan Hierarkis (Dropdown Popover dengan Checkbox) -->
+            <div class="dropdown position-relative" id="companyFilterDropdownWrap">
+                <button type="button" class="form-select form-select-filter text-start d-flex justify-content-between align-items-center" id="companyFilterTrigger" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer; background-color: #fff;">
+                    <span id="companyFilterTriggerLabel" class="text-truncate">Semua Perusahaan</span>
+                    <i class="bi bi-chevron-down text-muted ms-1" style="font-size: 11px;"></i>
+                </button>
+                <input type="hidden" id="companyFilter" name="company" value="">
+
+                <div class="dropdown-menu p-0 shadow border" id="companyFilterMenu" style="width: 100%; min-width: min(310px, calc(100vw - 36px)); max-width: min(420px, calc(100vw - 24px)); font-size: 12px; z-index: 1050;">
+                    <div class="p-2 border-bottom bg-light">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="search" id="companyFilterSearch" class="form-control border-start-0" placeholder="Cari perusahaan atau subcon..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div id="companyFilterListContainer" style="max-height: 260px; overflow-y: auto;" class="p-2">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <div class="p-2 border-top bg-light d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetCompanyFilter()" style="font-size:11px;">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                        </button>
+                        <div class="d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="closeCompanyFilterDropdown()" style="font-size:11px;">
+                                Tutup
+                            </button>
+                            <button type="button" class="btn btn-sm btn-teal" onclick="applyCompanyFilter()" style="font-size:11px;">
+                                <i class="bi bi-check2 me-1"></i>Terapkan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter SIKA -->
+            <div>
+                <select id="sikaFilter" class="form-select form-select-filter">
+                    <option value="">Semua SIKA</option>
+                    @foreach($sikkas as $s)
+                        <option value="{{ $s->name }}">{{ $s->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Filter Rentang Tanggal (Tanggal Mulai & Tanggal Selesai) -->
+            <div class="date-range-filter-container" id="dateRangeFilterWrap">
+                <div class="date-range-item">
+                    <label for="startDateFilter" class="date-range-label">Tanggal Mulai</label>
+                    <div class="filter-input-wrap date-range-input-wrap" title="Tanggal Mulai">
+                        <i class="bi bi-calendar-event filter-icon-addon"></i>
+                        <input type="date" id="startDateFilter" class="form-control form-control-filter" title="Tanggal Mulai" aria-label="Tanggal Mulai" value="{{ $today }}" autocomplete="off">
+                    </div>
+                </div>
+                <span class="date-range-separator">s/d</span>
+                <div class="date-range-item">
+                    <label for="endDateFilter" class="date-range-label">Tanggal Selesai</label>
+                    <div class="filter-input-wrap date-range-input-wrap" title="Tanggal Selesai">
+                        <i class="bi bi-calendar-check filter-icon-addon"></i>
+                        <input type="date" id="endDateFilter" class="form-control form-control-filter" title="Tanggal Selesai" aria-label="Tanggal Selesai" value="{{ $today }}" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="filter-input-wrap">
+                <i class="bi bi-search filter-icon-addon"></i>
+                <input type="search" id="searchInput" class="form-control form-control-filter" placeholder="Cari nama pekerjaan, perusahaan, SIKA, lokasi...">
+            </div>
+
+            <!-- Reset Filter -->
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3" style="height: 36px; font-weight: 600; font-size: 12px;" onclick="resetFilters()">
+                    Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABEL DAFTAR PEKERJAAN -->
+    <div class="table-responsive-custom">
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th style="width: 45px; text-align: center;">No.</th>
+                    <th>Nama Pekerjaan</th>
+                    <th style="width: 160px;">Perusahaan</th>
+                    <th style="width: 150px;">SIKA</th>
+                    <th style="width: 105px;">Tgl Mulai</th>
+                    <th style="width: 105px;">Tgl Selesai</th>
+                    <th style="width: 150px;">Lokasi</th>
+                    <th style="width: 100px; text-align: center;">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="workTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="table-bottom-bar">
+        <div id="tableInfo">Memuat data...</div>
+        <div id="pagination" class="d-flex gap-1"></div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: TAMBAH / EDIT PEKERJAAN -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="workModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content modal-custom-content">
+            <form id="workForm">
+                <div class="modal-header modal-header-themed teal">
+                    <h5 class="modal-title" id="workModalTitle">
+                        <i class="bi bi-calendar2-check me-1"></i> Tambah Pekerjaan
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" id="workEditId">
+                    <div class="row g-3">
+                        <!-- Nama Pekerjaan -->
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold" style="font-size:12px">Nama Pekerjaan <span class="text-danger">*</span></label>
+                            <input id="workName" class="form-control form-control-sm" placeholder="Contoh: Pengecekan Turbin Unit 1" required>
+                        </div>
+
+                        <!-- Perusahaan (Dropdown Hierarkis dengan Pencarian & Subcon) -->
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-semibold mb-0" style="font-size:12px">Perusahaan <span class="text-danger">*</span></label>
+                                <a href="javascript:void(0)" onclick="openMasterModal('company')" class="text-decoration-none" style="font-size: 11px;">+ Kelola</a>
+                            </div>
+                            <div class="dropdown position-relative" id="workCompanyDropdownWrap">
+                                <button type="button" class="form-select form-select-sm text-start d-flex justify-content-between align-items-center" id="workCompanyTrigger" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer; background-color: #fff;">
+                                    <span id="workCompanyTriggerLabel" class="text-truncate">Pilih Perusahaan</span>
+                                    <i class="bi bi-chevron-down text-muted ms-1" style="font-size: 11px;"></i>
+                                </button>
+                                <input type="hidden" id="workCompany" name="unit" required value="">
+
+                                <div class="dropdown-menu p-0 shadow-sm border" id="workCompanyMenu" style="width: 100%; min-width: min(310px, calc(100vw - 36px)); max-width: min(440px, calc(100vw - 24px)); font-size: 12px; z-index: 1060;">
+                                    <div class="p-2 border-bottom bg-light">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="search" id="workCompanySearch" class="form-control border-start-0" placeholder="Cari perusahaan atau subcon..." autocomplete="off">
+                                        </div>
+                                    </div>
+                                    <div id="workCompanyListContainer" style="max-height: 240px; overflow-y: auto;" class="p-1">
+                                        <!-- Populated dynamically via JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SIKA (Checkbox Multi-pilihan, Opsional) -->
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-semibold mb-0" style="font-size:12px">SIKA <span class="text-muted fw-normal" style="font-size:11px;">(Opsional, dapat memilih lebih dari satu)</span></label>
+                                <a href="javascript:void(0)" onclick="openMasterModal('sika')" class="text-decoration-none" style="font-size: 11px;">+ Kelola</a>
+                            </div>
+                            <div class="border rounded p-2 bg-light" id="workSikaContainer" style="max-height: 125px; overflow-y: auto;">
+                                @forelse($sikkas as $s)
+                                    @if($s->is_active)
+                                        <div class="form-check form-check-sm mb-1">
+                                            <input class="form-check-input sika-checkbox" type="checkbox" value="{{ $s->name }}" id="sika_{{ $s->id }}">
+                                            <label class="form-check-label text-dark" for="sika_{{ $s->id }}" style="font-size:12px; cursor:pointer;">
+                                                {{ $s->name }}
+                                            </label>
+                                        </div>
+                                    @endif
+                                @empty
+                                    <div class="text-muted" style="font-size:11px;">Belum ada pilihan SIKA aktif.</div>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        <!-- Tanggal Mulai -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="font-size:12px">Tanggal Mulai <span class="text-danger">*</span></label>
+                            <input type="date" id="workStart" class="form-control form-control-sm" required value="{{ $today }}">
+                        </div>
+
+                        <!-- Tanggal Selesai -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="font-size:12px">Tanggal Selesai <span class="text-danger">*</span></label>
+                            <input type="date" id="workEnd" class="form-control form-control-sm" required value="{{ $today }}">
+                        </div>
+
+                        <!-- Lokasi -->
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold" style="font-size:12px">Lokasi Pekerjaan <span class="text-danger">*</span></label>
+                            <input id="workLocation" class="form-control form-control-sm" placeholder="Contoh: Area Plant Utama / Wellpad 28" required>
+                        </div>
+
+                        <!-- Deskripsi -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" style="font-size:12px">Deskripsi / Keterangan</label>
+                            <textarea id="workDescription" class="form-control form-control-sm" rows="3" placeholder="Rincian catatan kegiatan pekerjaan..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-2 border-top">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-sm btn-action-primary px-4" id="btnSubmitWork">
+                        <i class="bi bi-check-lg me-1"></i> Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: DETAIL PEKERJAAN -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="workDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content modal-custom-content">
+            <div class="modal-header modal-header-themed teal">
+                <h5 class="modal-title" id="workDetailModalTitle">
+                    <i class="bi bi-calendar2-week me-1"></i> Detail Pekerjaan
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="workDetailModalBody">
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm text-teal me-2" role="status"></div>
+                    Memuat data detail pekerjaan...
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-2 border-top d-flex justify-content-between">
+                <a href="#" id="workDetailPermalink" class="btn btn-sm btn-outline-secondary" target="_blank">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Buka Halaman Penuh
+                </a>
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: KELOLA PILIHAN MASTER (PERUSAHAAN & SIKA) -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="masterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content modal-custom-content">
+            <div class="modal-header modal-header-themed teal">
+                <h5 class="modal-title">
+                    <i class="bi bi-sliders2 me-1"></i> Kelola Pilihan Master Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Master Tabs -->
+            <div class="border-bottom bg-light px-3 d-flex gap-2">
+                <button type="button" class="master-tab-btn active" id="tabBtnCompany" onclick="switchMasterTab('company')">
+                    <i class="bi bi-building me-1"></i> Perusahaan
+                </button>
+                <button type="button" class="master-tab-btn" id="tabBtnSika" onclick="switchMasterTab('sika')">
+                    <i class="bi bi-file-earmark-check me-1"></i> SIKA
+                </button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- TAB 1: PERUSAHAAN -->
+                <div id="tabContentCompany" class="master-tab-content">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">Master Perusahaan</h6>
+                            <small class="text-muted">Struktur hierarki perusahaan induk dan subcon. Perusahaan nonaktif tidak muncul untuk pekerjaan baru, namun histori lama tetap tersimpan.</small>
+                        </div>
+                        <button type="button" class="btn btn-master-teal admin-only-company" id="btnShowCompanyForm" onclick="showCompanyForm()">
+                            <i class="bi bi-plus-lg me-1"></i> Tambah Perusahaan
+                        </button>
+                    </div>
+
+                    <!-- Form Tambah / Edit Perusahaan (inline, tanpa modal tambahan) -->
+                    <div id="companyFormPanel" class="border rounded p-3 mb-3 bg-light d-none">
+                        <input type="hidden" id="companyFormId">
+                        <div class="fw-semibold mb-2" style="font-size:12px;" id="companyFormTitle">Tambah Perusahaan</div>
+                        <div class="row g-2 align-items-start">
+                            <!-- 1. Nama Perusahaan -->
+                            <div class="col-md-12">
+                                <label class="form-label mb-1 fw-semibold" style="font-size:12px;">1. Nama Perusahaan <span class="text-danger">*</span></label>
+                                <input type="text" id="companyFormName" class="form-control form-control-sm" maxlength="100" placeholder="Nama perusahaan...">
+                                <small id="companyNameLockNote" class="text-muted d-none" style="font-size:11px;">Nama perusahaan wajib tidak dapat diubah.</small>
+                            </div>
+
+                            <!-- 2. Memiliki Induk Perusahaan? (Pilihan Ya / Tidak) -->
+                            <div class="col-md-6">
+                                <label class="form-label mb-1 fw-semibold" style="font-size:12px;">2. Memiliki Induk Perusahaan? <span class="text-danger">*</span></label>
+                                <div class="d-flex align-items-center gap-3 pt-1">
+                                    <div class="form-check form-check-inline mb-0">
+                                        <input class="form-check-input" type="radio" name="companyHasParent" id="companyHasParentNo" value="0" checked onchange="onCompanyHasParentChange()">
+                                        <label class="form-check-label" for="companyHasParentNo" style="font-size:12px; cursor:pointer;">
+                                            Tidak (Tingkat Utama)
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-inline mb-0">
+                                        <input class="form-check-input" type="radio" name="companyHasParent" id="companyHasParentYes" value="1" onchange="onCompanyHasParentChange()">
+                                        <label class="form-check-label" for="companyHasParentYes" style="font-size:12px; cursor:pointer;">
+                                            Ya (Subcon)
+                                        </label>
+                                    </div>
+                                </div>
+                                <small id="companyHasParentHelp" class="text-muted d-block mt-1" style="font-size:11px;">
+                                    Pilih "Ya" jika perusahaan ini berada di bawah naungan perusahaan induk lain.
+                                </small>
+                            </div>
+
+                            <!-- 3. Induk Perusahaan (Hanya muncul jika Ya) -->
+                            <div class="col-md-6 d-none" id="companyParentWrap">
+                                <label class="form-label mb-1 fw-semibold" style="font-size:12px;">3. Induk Perusahaan <span class="text-danger">*</span></label>
+                                <select id="companyFormParent" class="form-select form-select-sm" style="font-size:12px;">
+                                    <option value="">-- Pilih Perusahaan Induk --</option>
+                                </select>
+                                <small class="text-muted d-block mt-1" style="font-size:11px;">
+                                    Hanya menampilkan perusahaan induk yang valid dan aktif.
+                                </small>
+                            </div>
+
+                            <!-- 4. Status -->
+                            <div class="col-md-6">
+                                <label class="form-label mb-1 fw-semibold" style="font-size:12px;">4. Status <span class="text-danger">*</span></label>
+                                <select id="companyFormActive" class="form-select form-select-sm" style="font-size:12px;">
+                                    <option value="1">Aktif</option>
+                                    <option value="0">Nonaktif</option>
+                                </select>
+                                <small class="text-muted d-block mt-1" style="font-size:11px;">
+                                    Perusahaan nonaktif tidak muncul untuk pekerjaan baru, namun histori lama tetap tersimpan.
+                                </small>
+                            </div>
+
+                            <div class="col-12 d-flex justify-content-end gap-2 mt-2 pt-2 border-top">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="hideCompanyForm()">Batal</button>
+                                <button type="button" class="btn btn-sm btn-teal" id="btnSaveCompany" onclick="submitCompanyForm()">
+                                    <i class="bi bi-check-lg"></i> Simpan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pencarian -->
+                    <div class="mb-2">
+                        <input type="search" id="companySearchInput" class="form-control form-control-sm" placeholder="Cari nama perusahaan atau induk..." oninput="renderMasterTables()">
+                    </div>
+
+                    <!-- Table Perusahaan (Hierarkis tanpa pemisah kategori) -->
+                    <div class="table-responsive border rounded" style="max-height: 380px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 12px;">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">No.</th>
+                                    <th>Nama Perusahaan</th>
+                                    <th style="width: 90px; text-align: center;">Status</th>
+                                    <th style="width: 140px; text-align: center;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="companyMasterTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 2: SIKA -->
+                <div id="tabContentSika" class="master-tab-content d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">Daftar Pilihan Izin SIKA</h6>
+                            <small class="text-muted">Surat Izin Kerja Aman (Ruang Terbatas, Ketinggian, Penggalian, Listrik, Isolasi Energi, Lifting, Panas, dll).</small>
+                        </div>
+                    </div>
+
+                    <!-- Form Tambah SIKA -->
+                    <div class="input-group mb-3" style="max-width: 520px;">
+                        <input type="text" id="newSikaName" class="form-control" placeholder="Nama jenis SIKA baru..." style="height: 36px; font-size: 12px; border-radius: 6px 0 0 6px;">
+                        <button type="button" class="btn btn-master-blue admin-only-company" onclick="submitAddSika()" style="border-radius: 0 6px 6px 0;">
+                            <i class="bi bi-plus-lg me-1"></i> Tambah SIKA
+                        </button>
+                    </div>
+
+                    <!-- Table SIKA -->
+                    <div class="table-responsive border rounded" style="max-height: 280px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0" style="font-size: 12px;">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 44px;">No.</th>
+                                    <th>Jenis SIKA</th>
+                                    <th style="width: 90px; text-align: center;">Status</th>
+                                    <th style="width: 140px; text-align: center;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sikaMasterTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light px-4 py-2 border-top">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Selesai</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: INFORMASI PERUSAHAAN TERLIBAT -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalSelectCompanyToday" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+        <div class="modal-content shadow-sm border-0">
+            <div class="modal-header py-3 px-4 border-bottom bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:34px; height:34px; background:#dcfce7; color:#15803d; font-size:16px;">
+                        <i class="bi bi-building-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-dark" id="modalCompanyDateTitle">Perusahaan Terlibat</h6>
+                        <small class="text-muted" id="modalCompanyDateSubtitle">Daftar perusahaan yang memiliki pekerjaan aktif</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="list-group list-group-flush border rounded-3 overflow-auto" id="modalCompanyListContainer" style="max-height: 360px;">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end">
+                <button type="button" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('scripts')
+<script>
+    // CSRF Token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    let todayStr = '{{ $today }}';
+    let hasManualDateFilter = false;
+    const canManageDailyWork = {{ Auth::user()?->isAdminManagement() ? 'true' : 'false' }};
+
+    // Master data in memory
+    let masterCompanies = @json($companies ?? []);
+    let filterCompanies = @json($filterCompanies ?? []);
+    const companyCategoryLabels = @json($companyCategories ?? []);
+    let masterSikas = @json($sikkas ?? []);
+    let currentCompaniesToday = @json($stats['companies_list_today'] ?? []);
+
+    // Current works list & pagination
+    let currentWorks = @json($works ?? []);
+    let currentPage = 1;
+    const initialUrlDateMode = new URLSearchParams(window.location.search).get('date_mode');
+    const serverDateMode = @json($dateMode ?? 'today');
+    let currentMode = (initialUrlDateMode === 'all' || (initialUrlDateMode !== 'today' && serverDateMode === 'all')) ? 'all' : 'today'; // 'today' or 'all'
+    let companyPieChart = null;
+
+    const $ = id => document.getElementById(id);
+
+    const workModal = $('workModal') ? bootstrap.Modal.getOrCreateInstance($('workModal')) : null;
+    const workDetailModal = $('workDetailModal') ? bootstrap.Modal.getOrCreateInstance($('workDetailModal')) : null;
+    const masterModal = $('masterModal') ? bootstrap.Modal.getOrCreateInstance($('masterModal')) : null;
+
+    function escapeHtml(str) {
+        return String(str ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[char]));
+    }
+
+    function formatDate(date) {
+        if (!date) return '-';
+        const strVal = String(date).slice(0, 10);
+        const parts = strVal.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const day = parts[2];
+            const mIdx = parseInt(parts[1], 10) - 1;
+            const year = parts[0];
+            return `${day} ${months[mIdx] || parts[1]} ${year}`;
+        }
+        return strVal;
+    }
+
+    // =========================================================================
+    // MODE SWITCHING & FILTERING
+    // =========================================================================
+    function setMode(mode) {
+        currentMode = mode;
+        hasManualDateFilter = false;
+        if (mode === 'today') {
+            $('btnModeToday')?.classList.add('active');
+            $('btnModeAll')?.classList.remove('active');
+            // Mode Hari Ini: set input rentang tanggal ke default tanggal hari ini
+            if ($('startDateFilter')) {
+                $('startDateFilter').value = todayStr;
+                $('startDateFilter').max = '';
+            }
+            if ($('endDateFilter')) {
+                $('endDateFilter').value = todayStr;
+                $('endDateFilter').min = '';
+            }
+            updateHeaderLabels(todayStr, todayStr);
+        } else {
+            $('btnModeAll')?.classList.add('active');
+            $('btnModeToday')?.classList.remove('active');
+            // Mode Semua Riwayat: kosongkan input tanggal agar memuat seluruh riwayat
+            if ($('startDateFilter')) {
+                $('startDateFilter').value = '';
+                $('startDateFilter').max = '';
+            }
+            if ($('endDateFilter')) {
+                $('endDateFilter').value = '';
+                $('endDateFilter').min = '';
+            }
+            updateHeaderLabels(null, null);
+        }
+        currentPage = 1;
+        fetchWorks();
+    }
+
+    function resetFilters() {
+        hasManualDateFilter = false;
+        if (typeof filterCompanySet !== 'undefined') filterCompanySet.clear();
+        if ($('companyFilter')) $('companyFilter').value = '';
+        if ($('companyFilterTriggerLabel')) $('companyFilterTriggerLabel').textContent = 'Semua Perusahaan';
+        if ($('companyFilterSearch')) $('companyFilterSearch').value = '';
+        if (typeof renderCompanyFilterDropdown === 'function') renderCompanyFilterDropdown('');
+
+        if ($('sikaFilter')) $('sikaFilter').value = '';
+        if ($('searchInput')) $('searchInput').value = '';
+
+        // Reset filter tanggal sesuai mode yang sedang aktif
+        if (currentMode === 'today') {
+            if ($('startDateFilter')) {
+                $('startDateFilter').value = todayStr;
+                $('startDateFilter').max = '';
+            }
+            if ($('endDateFilter')) {
+                $('endDateFilter').value = todayStr;
+                $('endDateFilter').min = '';
+            }
+            updateHeaderLabels(todayStr, todayStr);
+        } else {
+            if ($('startDateFilter')) {
+                $('startDateFilter').value = '';
+                $('startDateFilter').max = '';
+            }
+            if ($('endDateFilter')) {
+                $('endDateFilter').value = '';
+                $('endDateFilter').min = '';
+            }
+            updateHeaderLabels(null, null);
+        }
+
+        currentPage = 1;
+        fetchWorks();
+    }
+
+    function handleDateFilterChange() {
+        const startInput = $('startDateFilter');
+        const endInput = $('endDateFilter');
+        if (!startInput || !endInput) return;
+
+        hasManualDateFilter = true;
+
+        if (startInput.value && endInput.value && startInput.value > endInput.value) {
+            endInput.value = startInput.value;
+        }
+
+        if (startInput.value) {
+            endInput.min = startInput.value;
+        } else {
+            endInput.min = '';
+        }
+
+        if (endInput.value) {
+            startInput.max = endInput.value;
+        } else {
+            startInput.max = '';
+        }
+
+        currentPage = 1;
+        fetchWorks();
+    }
+
+    function updateHeaderLabels(startDate, endDate) {
+        if ($('exportPdfBtnLabel')) {
+            $('exportPdfBtnLabel').textContent = (currentMode === 'today')
+                ? 'Export PDF Hari Ini'
+                : 'Export PDF Riwayat';
+        }
+
+        const startVal = startDate !== undefined ? startDate : ($('startDateFilter')?.value || '');
+        const endVal = endDate !== undefined ? endDate : ($('endDateFilter')?.value || '');
+
+        let periodText = '';
+        if (startVal && endVal) {
+            periodText = (startVal === endVal) ? formatDate(startVal) : `${formatDate(startVal)} s/d ${formatDate(endVal)}`;
+        } else if (startVal) {
+            periodText = `Mulai ${formatDate(startVal)}`;
+        } else if (endVal) {
+            periodText = `Sampai ${formatDate(endVal)}`;
+        }
+
+        if (currentMode === 'today') {
+            const isDefaultToday = (!startVal && !endVal) || (startVal === todayStr && endVal === todayStr);
+            const todayFormatted = formatDate(todayStr);
+
+            if ($('tableHeaderTitle')) {
+                $('tableHeaderTitle').textContent = isDefaultToday
+                    ? 'Pekerjaan Hari Ini'
+                    : `Pekerjaan Hari Ini (${periodText})`;
+            }
+            if ($('tableHeaderSubtitle')) {
+                $('tableHeaderSubtitle').textContent = isDefaultToday
+                    ? `Tanggal: ${todayFormatted}`
+                    : `Rentang: ${periodText}`;
+            }
+            if ($('pieChartSubtitle')) {
+                $('pieChartSubtitle').textContent = isDefaultToday
+                    ? `Pekerjaan mulai hari ini (${todayFormatted})`
+                    : `Distribusi pekerjaan (${periodText})`;
+            }
+            if ($('statTitleToday')) {
+                $('statTitleToday').textContent = isDefaultToday
+                    ? 'Total Pekerjaan Hari Ini'
+                    : `Pekerjaan (${periodText})`;
+            }
+        } else {
+            if (periodText) {
+                if ($('tableHeaderTitle')) $('tableHeaderTitle').textContent = `Riwayat Pekerjaan (${periodText})`;
+                if ($('tableHeaderSubtitle')) $('tableHeaderSubtitle').textContent = `Rentang: ${periodText}`;
+                if ($('pieChartSubtitle')) {
+                    $('pieChartSubtitle').textContent = `Distribusi perusahaan (${periodText})`;
+                }
+            } else {
+                if ($('tableHeaderTitle')) $('tableHeaderTitle').textContent = 'Semua Riwayat Pekerjaan';
+                if ($('tableHeaderSubtitle')) $('tableHeaderSubtitle').textContent = 'Seluruh data riwayat pekerjaan';
+                if ($('pieChartSubtitle')) {
+                    $('pieChartSubtitle').textContent = 'Distribusi perusahaan dari seluruh riwayat';
+                }
+            }
+            if ($('statTitleToday')) {
+                $('statTitleToday').textContent = 'Total Pekerjaan Hari Ini';
+            }
+        }
+    }
+
+    let fetchWorksSeq = 0;
+    let fetchWorksAbortController = null;
+
+    function fetchWorks() {
+        const reqSeq = ++fetchWorksSeq;
+        const requestedMode = currentMode;
+
+        if (fetchWorksAbortController) {
+            fetchWorksAbortController.abort();
+        }
+        fetchWorksAbortController = new AbortController();
+
+        const params = new URLSearchParams();
+        params.set('date_mode', requestedMode);
+
+        const comp = $('companyFilter')?.value;
+        const sika = $('sikaFilter')?.value;
+        const searchVal = $('searchInput')?.value?.trim();
+        let startVal = $('startDateFilter')?.value || '';
+        let endVal = $('endDateFilter')?.value || '';
+
+        if (comp) params.set('company', comp);
+        if (sika) params.set('sika', sika);
+        if (searchVal) params.set('search', searchVal);
+
+        // Pada mode Hari Ini default (tanpa filter tanggal manual), jangan kirim tanggal statis browser agar backend memakai hari ini WIB terkini
+        if (requestedMode !== 'today' || hasManualDateFilter) {
+            if (startVal) params.set('start_date', startVal);
+            if (endVal) params.set('end_date', endVal);
+        }
+
+        fetch(`/daily-work?${params.toString()}`, {
+            signal: fetchWorksAbortController.signal,
+            cache: 'no-store',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (reqSeq !== fetchWorksSeq || requestedMode !== currentMode) {
+                return;
+            }
+            if (data.success) {
+                if (data.today_date) {
+                    todayStr = data.today_date;
+                }
+                if (currentMode === 'today' && !hasManualDateFilter) {
+                    if ($('startDateFilter')) $('startDateFilter').value = todayStr;
+                    if ($('endDateFilter')) $('endDateFilter').value = todayStr;
+                    startVal = todayStr;
+                    endVal = todayStr;
+                }
+                currentWorks = data.works || [];
+                renderTable();
+                if (data.stats) updateStatsDisplay(data.stats);
+                if (data.company_distribution) renderPieChart(data.company_distribution);
+                updateHeaderLabels(startVal, endVal);
+            }
+        })
+        .catch(err => {
+            if (err && err.name === 'AbortError') return;
+            console.error('Failed to fetch works:', err);
+        });
+    }
+
+    // =========================================================================
+    // RENDERING TABLE & PAGINATION
+    // =========================================================================
+    function renderTable() {
+        const perPage = Number($('perPage').value) || 10;
+        const totalItems = currentWorks.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        const startIndex = (currentPage - 1) * perPage;
+        const pageItems = currentWorks.slice(startIndex, startIndex + perPage);
+
+        if (pageItems.length === 0) {
+            const startVal = $('startDateFilter')?.value;
+            const endVal = $('endDateFilter')?.value;
+            let periodText = '';
+            if (startVal && endVal) {
+                periodText = (startVal === endVal) ? formatDate(startVal) : `${formatDate(startVal)} s/d ${formatDate(endVal)}`;
+            } else if (startVal) {
+                periodText = `mulai ${formatDate(startVal)}`;
+            } else if (endVal) {
+                periodText = `sampai ${formatDate(endVal)}`;
+            } else if (currentMode === 'today') {
+                periodText = `hari ini (${formatDate(todayStr)})`;
+            }
+
+            const emptyMessage = currentMode === 'today'
+                ? (periodText ? `Tidak ada pekerjaan yang sesuai dengan periode ${periodText}.` : 'Tidak ada data pekerjaan hari ini.')
+                : 'Tidak ada data pekerjaan yang sesuai dengan filter.';
+            $('workTableBody').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-4 d-block mb-1"></i>
+                        ${escapeHtml(emptyMessage)}
+                    </td>
+                </tr>
+            `;
+            $('tableInfo').textContent = 'Tidak ada data';
+            $('pagination').innerHTML = '';
+            return;
+        }
+
+        $('workTableBody').innerHTML = pageItems.map((w, idx) => {
+            const no = startIndex + idx + 1;
+            const companyName = w.unit || w.company || '-';
+            const sikaRaw = w.sika || w.sikka || '';
+            let sikaHtml = '<span class="text-muted">-</span>';
+            if (sikaRaw && sikaRaw.trim() !== '' && sikaRaw.trim() !== '-') {
+                const sikaList = sikaRaw.split(',').map(s => s.trim()).filter(Boolean);
+                if (sikaList.length > 0) {
+                    sikaHtml = sikaList.map(s => `<span class="badge-sika d-inline-block me-1 mb-1">${escapeHtml(s)}</span>`).join('');
+                }
+            }
+
+            // Induk Perusahaan untuk Subcon (berdasarkan relasi Master Data Perusahaan)
+            const parentName = w.parent_company_name || (function() {
+                const c = masterCompanies.find(m => m.name.toLowerCase() === String(companyName).trim().toLowerCase());
+                if (c && c.category === 'subcon') {
+                    return c.parent_short_name || (c.parent_name ? c.parent_name.replace(/\s*\(All\)$/i, '') : '');
+                }
+                return '';
+            })();
+
+            // Tampilkan badge Selesai pada Hari Ini maupun arsip Semua Riwayat agar status pekerjaan tetap jelas
+            const isCompleted = String(w.status || '').toLowerCase() === 'selesai' || String(w.status || '').toLowerCase() === 'completed';
+            const statusBadge = isCompleted
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:10px; padding: 1.5px 6px;"><i class="bi bi-check-circle me-1"></i>Selesai</span>'
+                : '';
+
+            // Tombol centang Pekerjaan Selesai: hanya tampil di Tab Hari Ini untuk pekerjaan yang belum selesai
+            const showCompleteButton = canManageDailyWork && (currentMode === 'today') && !isCompleted;
+
+            return `
+                <tr>
+                    <td class="text-center fw-semibold text-muted">${no}</td>
+                    <td>
+                        <div class="fw-semibold text-dark">${escapeHtml(w.name)}</div>
+                        <div class="d-flex align-items-center gap-1" style="margin-top: 2px;">
+                            <small class="text-muted">#DW-${String(w.id).padStart(4, '0')}</small>
+                            ${statusBadge}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge-company">${escapeHtml(companyName)}</span>
+                        ${parentName ? `<div class="company-parent-subtext">${escapeHtml(parentName)}</div>` : ''}
+                    </td>
+                    <td>${sikaHtml}</td>
+                    <td style="font-size:11.5px;">${formatDate(w.start_date || w.start)}</td>
+                    <td style="font-size:11.5px;">${formatDate(w.end_date || w.end)}</td>
+                    <td style="font-size:12px;">${escapeHtml(w.location || '-')}</td>
+                    <td class="text-center">
+                        <div class="d-inline-flex gap-1">
+                            <button type="button" class="btn-action-icon btn-action-view" title="Detail Pekerjaan" onclick="viewWorkDetail(${w.id})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${showCompleteButton ? `
+                                <button type="button" class="btn-action-icon btn-action-complete" title="Pekerjaan Selesai" onclick="completeWork(${w.id})">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            ` : ''}
+                            ${canManageDailyWork ? `
+                                <button type="button" class="btn-action-icon btn-action-edit" title="Edit Pekerjaan" onclick="editWork(${w.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn-action-icon btn-action-delete" title="Hapus Pekerjaan" onclick="deleteWork(${w.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        const endCount = Math.min(startIndex + perPage, totalItems);
+        $('tableInfo').textContent = `Menampilkan ${startIndex + 1} - ${endCount} dari ${totalItems} data`;
+
+        let paginationHtml = '';
+        for (let p = 1; p <= totalPages; p++) {
+            const activeStyle = p === currentPage ? 'background:#0d9488; border-color:#0d9488; color:white;' : '';
+            paginationHtml += `
+                <button class="btn btn-sm ${p === currentPage ? 'btn-teal' : 'btn-outline-secondary'}" style="${activeStyle}" onclick="goToPage(${p})">
+                    ${p}
+                </button>
+            `;
+        }
+        $('pagination').innerHTML = paginationHtml;
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        renderTable();
+    }
+
+    // =========================================================================
+    // STATS & CHARTS UPDATE
+    // =========================================================================
+    function updateStatsDisplay(stats) {
+        if ($('statTotalToday')) $('statTotalToday').textContent = stats.total_today ?? 0;
+        if ($('statCompaniesToday')) $('statCompaniesToday').textContent = stats.companies_today ?? 0;
+        if ($('statTotalHistory')) $('statTotalHistory').textContent = stats.total_all ?? (stats.total_history ?? 0);
+
+        if (Array.isArray(stats.companies_list_today)) {
+            currentCompaniesToday = stats.companies_list_today;
+        }
+
+        if ($('todayPieBadge')) {
+            $('todayPieBadge').textContent = currentMode === 'today'
+                ? `${stats.total_today ?? 0} Pekerjaan`
+                : `${currentWorks.length} Pekerjaan (Riwayat)`;
+        }
+    }
+
+    // =========================================================================
+    // INTERAKSI KARTU STATISTIK (HYPERLINK & FILTER OTOMATIS)
+    // =========================================================================
+    function scrollToTable() {
+        const tableCard = document.querySelector('.table-card');
+        if (tableCard) {
+            tableCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function handleCardKeydown(e, callback) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            callback();
+        }
+    }
+
+    // Kartu 1: Total Pekerjaan Hari Ini
+    function filterByCardToday() {
+        currentMode = 'today';
+        hasManualDateFilter = false;
+        $('btnModeToday')?.classList.add('active');
+        $('btnModeAll')?.classList.remove('active');
+
+        if ($('startDateFilter')) {
+            $('startDateFilter').value = todayStr;
+            $('startDateFilter').max = '';
+        }
+        if ($('endDateFilter')) {
+            $('endDateFilter').value = todayStr;
+            $('endDateFilter').min = '';
+        }
+
+        if ($('companyFilter')) $('companyFilter').value = '';
+        if ($('sikaFilter')) $('sikaFilter').value = '';
+        if ($('searchInput')) $('searchInput').value = '';
+
+        updateHeaderLabels(todayStr, todayStr);
+        currentPage = 1;
+        fetchWorks();
+        scrollToTable();
+    }
+
+    // Kartu 2: Perusahaan Terlibat (Membuka modal informasi di halaman yang sama)
+    function filterByCardCompanies() {
+        const companies = currentCompaniesToday || [];
+        const startVal = $('startDateFilter')?.value || todayStr;
+        const endVal = $('endDateFilter')?.value || startVal;
+        const dateLabel = (startVal === endVal) ? formatDate(startVal) : `${formatDate(startVal)} s/d ${formatDate(endVal)}`;
+
+        renderCompanyPickerModal(companies, startVal, dateLabel);
+        const modalEl = $('modalSelectCompanyToday');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    }
+
+    function renderCompanyPickerModal(companies, curDate, dFormatted) {
+        const titleEl = $('modalCompanyDateTitle');
+        const subtitleEl = $('modalCompanyDateSubtitle');
+        const container = $('modalCompanyListContainer');
+
+        const dateLabel = dFormatted || formatDate(curDate || todayStr);
+
+        if (titleEl) {
+            titleEl.textContent = `Perusahaan Terlibat (${dateLabel})`;
+        }
+        if (subtitleEl) {
+            const count = (companies || []).length;
+            subtitleEl.textContent = `${count} perusahaan unik dengan pekerjaan aktif`;
+        }
+
+        if (!container) return;
+
+        if (!companies || companies.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4 px-3 text-muted">
+                    <i class="bi bi-building-slash d-block mb-2" style="font-size: 28px; color: #94a3b8;"></i>
+                    <div class="fw-semibold text-dark" style="font-size: 13px;">Tidak Ada Perusahaan Terlibat</div>
+                    <div style="font-size: 11.5px;">Tidak ada perusahaan yang memiliki pekerjaan aktif pada tanggal ini.</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        companies.forEach(c => {
+            const rawName = (c.name || '').trim();
+            const safeName = escapeHtml(rawName);
+            const count = c.count || 0;
+
+            // Cek relasi induk jika merupakan subcon
+            const m = (masterCompanies || []).find(item => item.name && item.name.toLowerCase() === rawName.toLowerCase());
+            let labelHtml = safeName;
+            if (m && m.category === 'subcon') {
+                const parentShort = m.parent_short_name || m.parent_name || '';
+                if (parentShort) {
+                    labelHtml = `${safeName} <span class="text-muted fw-normal" style="font-size: 11.5px;">(${escapeHtml(parentShort)})</span>`;
+                }
+            }
+
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2.5 px-3 border-0 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="rounded-2 d-flex align-items-center justify-content-center" style="width:28px; height:28px; background:#f1f5f9; color:#475569; font-size:13px;">
+                            <i class="bi bi-building"></i>
+                        </div>
+                        <span class="fw-semibold text-dark" style="font-size:13px;">${labelHtml}</span>
+                    </div>
+                    <span class="badge rounded-pill bg-teal-subtle text-teal border border-teal" style="font-size:11px; padding: 4px 10px;">
+                        ${count} Pekerjaan
+                    </span>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function selectCompanyAndFilter(companyName) {
+        const modalEl = $('modalSelectCompanyToday');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+
+        currentMode = 'today';
+        $('btnModeToday')?.classList.add('active');
+        $('btnModeAll')?.classList.remove('active');
+
+        if ($('startDateFilter') && !$('startDateFilter').value) {
+            $('startDateFilter').value = todayStr;
+        }
+        if ($('endDateFilter') && !$('endDateFilter').value) {
+            $('endDateFilter').value = todayStr;
+        }
+
+        if (typeof filterCompanySet !== 'undefined') {
+            filterCompanySet.clear();
+            if (companyName) filterCompanySet.add(companyName);
+        }
+
+        if ($('companyFilter')) {
+            $('companyFilter').value = companyName || '';
+        }
+        if ($('companyFilterTriggerLabel')) {
+            $('companyFilterTriggerLabel').textContent = companyName || 'Semua Perusahaan';
+        }
+        if (typeof renderCompanyFilterDropdown === 'function') {
+            renderCompanyFilterDropdown('');
+        }
+
+        updateHeaderLabels();
+        currentPage = 1;
+        fetchWorks();
+        scrollToTable();
+    }
+
+    // Helper navigasi riwayat
+    function filterByCardHistory() {
+        setMode('all');
+
+        if ($('startDateFilter')) $('startDateFilter').value = '';
+        if ($('endDateFilter')) $('endDateFilter').value = '';
+        if ($('companyFilter')) $('companyFilter').value = '';
+        if ($('sikaFilter')) $('sikaFilter').value = '';
+        if ($('searchInput')) $('searchInput').value = '';
+
+        currentPage = 1;
+        fetchWorks();
+        scrollToTable();
+    }
+
+    const pieColors = [
+        '#0d9488', '#0284c7', '#f59e0b', '#8b5cf6', '#ec4899', '#10b981', '#f97316', '#64748b'
+    ];
+
+    function renderPieChart(distribution) {
+        const pieCanvas = $('companyPieChart');
+        const chartContent = $('companyChartContent');
+        const emptyState = $('pieEmptyState');
+        const legendGrid = $('pieLegendGrid');
+
+        const startVal = $('startDateFilter')?.value;
+        const endVal = $('endDateFilter')?.value;
+        let periodLabel = '';
+        if (startVal && endVal) {
+            periodLabel = (startVal === endVal) ? formatDate(startVal) : `${formatDate(startVal)} s/d ${formatDate(endVal)}`;
+        } else if (startVal) {
+            periodLabel = `mulai ${formatDate(startVal)}`;
+        } else if (endVal) {
+            periodLabel = `sampai ${formatDate(endVal)}`;
+        } else if (currentMode === 'today') {
+            periodLabel = `hari ini (${formatDate(todayStr)})`;
+        }
+
+        if ($('pieEmptyTitle')) {
+            $('pieEmptyTitle').textContent = currentMode === 'today'
+                ? (periodLabel ? `Tidak Ada Pekerjaan Aktif (${periodLabel})` : 'Tidak Ada Pekerjaan Hari Ini')
+                : 'Tidak Ada Data Pekerjaan';
+        }
+        if ($('pieEmptyDesc')) {
+            $('pieEmptyDesc').textContent = currentMode === 'today'
+                ? `Belum ada pekerjaan yang sesuai dengan periode ${periodLabel || 'hari ini'}.`
+                : 'Tidak ditemukan pekerjaan yang cocok dengan filter.';
+        }
+
+        if ($('todayPieBadge')) {
+            $('todayPieBadge').textContent = currentMode === 'today'
+                ? `${currentWorks.length} Pekerjaan`
+                : `${currentWorks.length} Pekerjaan (Riwayat)`;
+        }
+
+        if (!distribution || distribution.length === 0) {
+            if (companyPieChart) {
+                companyPieChart.destroy();
+                companyPieChart = null;
+            }
+            chartContent?.classList.add('d-none');
+            emptyState?.classList.remove('d-none');
+            if (legendGrid) legendGrid.innerHTML = '';
+            return;
+        }
+
+        emptyState?.classList.add('d-none');
+        chartContent?.classList.remove('d-none');
+
+        const labels = distribution.map(d => d.name);
+        const dataVals = distribution.map(d => d.count);
+        const bgColors = labels.map((_, i) => pieColors[i % pieColors.length]);
+
+        if (legendGrid) {
+            legendGrid.innerHTML = distribution.map((d, i) => `
+                <div class="pie-legend-item">
+                    <span class="pie-legend-dot" style="background: ${bgColors[i]};"></span>
+                    <span class="text-truncate fw-medium" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+                    <span class="pie-legend-val">${d.count} (${d.percentage}%)</span>
+                </div>
+            `).join('');
+        }
+
+        if (companyPieChart) {
+            companyPieChart.data.labels = labels;
+            companyPieChart.data.datasets[0].data = dataVals;
+            companyPieChart.data.datasets[0].backgroundColor = bgColors;
+            companyPieChart.update();
+            return;
+        }
+
+        companyPieChart = new Chart(pieCanvas, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataVals,
+                    backgroundColor: bgColors,
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const idx = context.dataIndex;
+                                const item = distribution[idx];
+                                return ` ${item.name}: ${item.count} pekerjaan (${item.percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // =========================================================================
+    // ADD / EDIT WORK MODAL & SUBMIT
+    // =========================================================================
+    function openAddModal() {
+        $('workForm').reset();
+        $('workEditId').value = '';
+        $('workStart').value = todayStr;
+        $('workEnd').value = todayStr;
+        $('workModalTitle').innerHTML = '<i class="bi bi-calendar2-check me-1"></i> Tambah Pekerjaan Baru';
+        if (typeof setWorkCompanyValue === 'function') setWorkCompanyValue('');
+        if ($('workCompanySearch')) $('workCompanySearch').value = '';
+        syncSelectDropdowns();
+        renderWorkSikaCheckboxes([]);
+        workModal?.show();
+    }
+
+    function editWork(id) {
+        const w = currentWorks.find(item => item.id === Number(id));
+        if (!w) return;
+
+        $('workForm').reset();
+        $('workEditId').value = w.id;
+        $('workModalTitle').innerHTML = '<i class="bi bi-pencil-square me-1"></i> Edit Pekerjaan';
+
+        $('workName').value = w.name || '';
+        $('workStart').value = (w.start_date || w.start || '').slice(0, 10);
+        $('workEnd').value = (w.end_date || w.end || '').slice(0, 10);
+        $('workLocation').value = w.location || '';
+        $('workDescription').value = w.description || '';
+
+        const companyVal = w.unit || w.company || '';
+        if (typeof setWorkCompanyValue === 'function') setWorkCompanyValue(companyVal);
+        if ($('workCompanySearch')) $('workCompanySearch').value = '';
+        syncSelectDropdowns();
+
+        // Set SIKA (mendukung banyak pilihan, centang checkbox)
+        const sikaRaw = w.sika || w.sikka || '';
+        const selectedSikas = (sikaRaw && sikaRaw !== '-')
+            ? sikaRaw.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+        renderWorkSikaCheckboxes(selectedSikas);
+
+        workModal?.show();
+    }
+
+    $('workForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const id = $('workEditId').value;
+        const isUpdate = !!id;
+
+        const selectedSikas = getSelectedSikas();
+
+        const payload = {
+            name: $('workName').value.trim(),
+            unit: $('workCompany').value,
+            sika: selectedSikas,
+            sikka: selectedSikas.join(', '),
+            start_date: $('workStart').value,
+            end_date: $('workEnd').value,
+            location: $('workLocation').value.trim(),
+            description: $('workDescription').value.trim(),
+        };
+
+        const url = isUpdate ? `/daily-work/${id}` : '/daily-work';
+        const method = isUpdate ? 'PUT' : 'POST';
+
+        const submitBtn = $('btnSubmitWork');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Simpan';
+
+            if (data.success) {
+                workModal?.hide();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: data.message || 'Pekerjaan berhasil disimpan.',
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+                fetchWorks();
+            } else {
+                Swal.fire('Gagal', data.message || 'Gagal menyimpan data pekerjaan.', 'error');
+            }
+        })
+        .catch(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Simpan';
+            Swal.fire('Error', 'Terjadi kesalahan sistem saat menyimpan data.', 'error');
+        });
+    });
+
+    // =========================================================================
+    // VIEW WORK DETAIL
+    // =========================================================================
+    function viewWorkDetail(id) {
+        $('workDetailPermalink').href = `/daily-work/${id}`;
+        $('workDetailModalTitle').innerHTML = '<i class="bi bi-calendar2-week me-1"></i> Memuat Detail...';
+        $('workDetailModalBody').innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-teal" role="status"></div>
+                <div class="mt-2 text-muted fw-semibold" style="font-size:12px">Mengambil data pekerjaan...</div>
+            </div>
+        `;
+        workDetailModal?.show();
+
+        fetch(`/daily-work/${id}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success || !data.work) {
+                throw new Error(data.message || 'Data tidak ditemukan.');
+            }
+            const w = data.work;
+            const companyName = w.unit || w.company || '-';
+            const parentName = w.parent_company_name || (function() {
+                const c = masterCompanies.find(m => m.name.toLowerCase() === String(companyName).trim().toLowerCase());
+                if (c && c.category === 'subcon') {
+                    return c.parent_short_name || (c.parent_name ? c.parent_name.replace(/\s*\(All\)$/i, '') : '');
+                }
+                return '';
+            })();
+            const isCompleted = (w.status === 'Selesai' || w.status === 'completed');
+            const statusDetailBadge = isCompleted
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1"><i class="bi bi-check-circle me-1"></i>Selesai</span>'
+                : '<span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-1"><i class="bi bi-play-circle me-1"></i>' + escapeHtml(w.status || 'Berlangsung') + '</span>';
+
+            const sikaRaw = w.sika || w.sikka || '';
+            const sikaList = (sikaRaw && sikaRaw !== '-') ? sikaRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+            const sikaBadges = sikaList.length > 0
+                ? sikaList.map(s => `<span class="badge-sika fs-6 px-3 py-1 d-inline-block me-1 mb-1"><i class="bi bi-file-earmark-check me-1"></i>${escapeHtml(s)}</span>`).join('')
+                : '<span class="badge bg-secondary-subtle text-secondary fs-6 px-3 py-1"><i class="bi bi-file-earmark-x me-1"></i>Tanpa SIKA</span>';
+            const sikaText = sikaList.length > 0 ? sikaList.map(escapeHtml).join(', ') : '-';
+
+            $('workDetailModalTitle').innerHTML = `<i class="bi bi-calendar2-week me-1"></i> Detail: ${escapeHtml(w.name)}`;
+
+            $('workDetailModalBody').innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-wrap gap-2">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <span class="badge-company fs-6 px-3 py-1">
+                            <i class="bi bi-building me-1"></i>${escapeHtml(companyName)}
+                        </span>
+                        ${parentName ? `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1" style="font-size:12px;">Induk: <strong>${escapeHtml(parentName)}</strong></span>` : ''}
+                        ${sikaBadges}
+                        ${statusDetailBadge}
+                    </div>
+                    <span class="text-muted fw-semibold" style="font-size:11.5px">
+                        ID: #DW-${String(w.id).padStart(4, '0')}
+                    </span>
+                </div>
+
+                <div class="row g-3 mb-2">
+                    <div class="col-md-12">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted" style="font-size:11px">Nama Pekerjaan</div>
+                            <div class="fw-bold text-dark mt-1" style="font-size:13.5px">${escapeHtml(w.name)}</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted" style="font-size:11px">SIKA</div>
+                            <div class="fw-semibold text-dark mt-1" style="font-size:12px">
+                                <i class="bi bi-shield-check text-teal me-1"></i>${escapeHtml(sikaText)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted" style="font-size:11px">Periode Pelaksanaan</div>
+                            <div class="fw-semibold text-dark mt-1" style="font-size:12px">
+                                <i class="bi bi-calendar3 text-primary me-1"></i>${formatDate(w.start_date || w.start)} s/d ${formatDate(w.end_date || w.end)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted" style="font-size:11px">Lokasi Pekerjaan</div>
+                            <div class="fw-semibold text-dark mt-1" style="font-size:12px">
+                                <i class="bi bi-geo-alt text-danger me-1"></i>${escapeHtml(w.location || '-')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="p-3 border rounded bg-light">
+                            <div class="text-muted mb-1" style="font-size:11px">Keterangan / Deskripsi Pekerjaan</div>
+                            <div class="text-secondary" style="font-size:12px; line-height:1.5;">
+                                ${escapeHtml(w.description || 'Tidak ada catatan atau deskripsi tambahan.')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        })
+        .catch(err => {
+            workDetailModal?.hide();
+            Swal.fire('Data Tidak Ditemukan', err.message, 'error');
+        });
+    }
+
+    // =========================================================================
+    // COMPLETE WORK (TANDAI PEKERJAAN SELESAI)
+    // =========================================================================
+    function completeWork(id) {
+        const w = currentWorks.find(item => item.id === Number(id));
+        const workName = w ? w.name : 'pekerjaan ini';
+
+        Swal.fire({
+            title: 'Pekerjaan Selesai',
+            html: `Tandai pekerjaan <b>"${escapeHtml(workName)}"</b> sebagai selesai?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#16a34a',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: '<i class="bi bi-check-lg me-1"></i> Ya, Selesaikan',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (result.isConfirmed) {
+                fetch(`/daily-work/${id}/complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Pekerjaan Selesai',
+                            text: data.message || 'Pekerjaan berhasil ditandai selesai.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        fetchWorks();
+                    } else {
+                        Swal.fire('Gagal', data.message || 'Gagal menandai pekerjaan selesai.', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error completing work:', err);
+                    Swal.fire('Error', 'Terjadi kesalahan sistem saat memperbarui status pekerjaan.', 'error');
+                });
+            }
+        });
+    }
+
+    // =========================================================================
+    // DELETE WORK
+    // =========================================================================
+    function deleteWork(id) {
+        const w = currentWorks.find(item => item.id === Number(id));
+        Swal.fire({
+            title: 'Hapus Pekerjaan?',
+            html: `Apakah Anda yakin ingin menghapus pekerjaan <b>"${w ? escapeHtml(w.name) : ''}"</b>?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (result.isConfirmed) {
+                fetch(`/daily-work/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Terhapus!',
+                            text: 'Pekerjaan berhasil dihapus.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        fetchWorks();
+                    } else {
+                        Swal.fire('Gagal', data.message || 'Gagal menghapus pekerjaan.', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Error', 'Terjadi kesalahan sistem saat menghapus.', 'error');
+                });
+            }
+        });
+    }
+
+    // =========================================================================
+    // CRUD MASTER DATA MODAL (PERUSAHAAN & SIKA)
+    // =========================================================================
+    function openMasterModal(tab = 'company') {
+        const normalizedTab = (tab === 'sikka' || tab === 'sika') ? 'sika' : 'company';
+        switchMasterTab(normalizedTab);
+        loadMasterData();
+        masterModal?.show();
+    }
+
+    function switchMasterTab(tab) {
+        const activeTab = (tab === 'sikka' || tab === 'sika') ? 'sika' : 'company';
+        ['company', 'sika'].forEach(t => {
+            const btn = $(`tabBtn${t.charAt(0).toUpperCase() + t.slice(1)}`);
+            const content = $(`tabContent${t.charAt(0).toUpperCase() + t.slice(1)}`);
+            if (t === activeTab) {
+                btn?.classList.add('active');
+                content?.classList.remove('d-none');
+            } else {
+                btn?.classList.remove('active');
+                content?.classList.add('d-none');
+            }
+        });
+    }
+
+    function loadMasterData() {
+        fetch('/daily-work/masters/all', {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                masterCompanies = data.companies || [];
+                if (data.filter_companies) {
+                    filterCompanies = data.filter_companies;
+                }
+                masterSikas = data.sikas || data.sikkas || [];
+                renderMasterTables();
+                const filterChanged = syncFilterCompanyStateWithActive();
+                syncSelectDropdowns();
+                if (filterChanged) {
+                    currentPage = 1;
+                    fetchWorks();
+                }
+            }
+        })
+        .catch(err => console.error('Failed to load masters:', err));
+    }
+
+    function renderMasterTables() {
+        // Render Companies Table (Hierarkis sesuai relasi database)
+        const companyTerm = ($('companySearchInput')?.value || '').trim().toLowerCase();
+
+        // 1. Kelompokkan perusahaan berdasarkan struktur hierarki relasi parent_company_id
+        const roots = masterCompanies.filter(c => !c.parent_company_id);
+        const childrenMap = new Map();
+        masterCompanies.forEach(c => {
+            if (c.parent_company_id) {
+                if (!childrenMap.has(c.parent_company_id)) {
+                    childrenMap.set(c.parent_company_id, []);
+                }
+                childrenMap.get(c.parent_company_id).push(c);
+            }
+        });
+
+        const parentGroups = [];
+        const standaloneList = [];
+        roots.forEach(r => {
+            const subs = childrenMap.get(r.id) || [];
+            if (subs.length > 0) {
+                parentGroups.push({ parent: r, children: subs });
+            } else {
+                standaloneList.push(r);
+            }
+        });
+
+        // Subcon tanpa induk di roots (jika ada data anomali)
+        const handledChildIds = new Set();
+        parentGroups.forEach(g => g.children.forEach(s => handledChildIds.add(s.id)));
+        const orphanList = masterCompanies.filter(c => c.parent_company_id && !handledChildIds.has(c.id));
+
+        // 2. Bentuk daftar terurut hierarkis
+        const displayItems = [];
+        parentGroups.forEach(g => {
+            displayItems.push({ company: g.parent, isChild: false, isParent: true, isLastInGroup: false });
+            g.children.forEach((c, cIdx) => {
+                displayItems.push({
+                    company: c,
+                    isChild: true,
+                    isParent: false,
+                    isLastInGroup: (cIdx === g.children.length - 1)
+                });
+            });
+        });
+        standaloneList.forEach(c => {
+            displayItems.push({ company: c, isChild: false, isParent: false, isLastInGroup: false });
+        });
+        orphanList.forEach(c => {
+            displayItems.push({ company: c, isChild: true, isParent: false, isLastInGroup: false });
+        });
+
+        // 3. Filter jika ada kata kunci pencarian
+        const visibleItems = displayItems.filter(item => {
+            if (!companyTerm) return true;
+            const c = item.company;
+            return [c.name, c.parent_name, c.is_active ? 'aktif' : 'nonaktif']
+                .some(v => String(v ?? '').toLowerCase().includes(companyTerm));
+        });
+
+        document.querySelectorAll('.admin-only-company').forEach(el => el.classList.toggle('d-none', !canManageDailyWork));
+
+        $('companyMasterTableBody').innerHTML = visibleItems.map((item, idx) => {
+            const c = item.company;
+            const statusBadge = c.is_active
+                ? '<span class="badge bg-success">Aktif</span>'
+                : '<span class="badge bg-secondary">Nonaktif</span>';
+            const actions = canManageDailyWork ? `
+                <div class="d-inline-flex gap-1 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;" title="Edit" onclick="showCompanyForm(${c.id})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm ${c.is_active ? 'btn-outline-warning' : 'btn-outline-success'} py-0 px-2" style="font-size:11px;" title="${c.is_active ? 'Nonaktifkan' : 'Aktifkan'}" onclick="toggleCompanyActive(${c.id})">
+                        <i class="bi ${c.is_active ? 'bi-toggle-on' : 'bi-toggle-off'}"></i> ${c.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    `
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;" title="Hapus (hanya untuk perusahaan yang belum pernah dipakai)" onclick="deleteCompany(${c.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>`
+                </div>` : '<span class="text-muted">-</span>';
+
+            let nameHtml = '';
+            if (item.isChild) {
+                nameHtml = `
+                    <div class="d-flex align-items-center ms-3 ps-2">
+                        <i class="bi bi-arrow-return-right text-muted me-2" style="font-size:12px;"></i>
+                        <span class="text-dark">${escapeHtml(c.name)}</span>
+                    </div>
+                `;
+            } else if (item.isParent) {
+                nameHtml = `
+                    <div class="d-flex align-items-center">
+                        <strong class="text-dark">${escapeHtml(c.name)}</strong>
+                    </div>
+                `;
+            } else {
+                nameHtml = `
+                    <div class="d-flex align-items-center">
+                        <span class="text-dark">${escapeHtml(c.name)}</span>
+                    </div>
+                `;
+            }
+
+            const borderBottomStyle = (item.isLastInGroup && !companyTerm) ? 'border-bottom: 2px solid #cbd5e1;' : '';
+
+            return `
+                <tr style="${borderBottomStyle}">
+                    <td class="align-middle text-center text-muted">${idx + 1}</td>
+                    <td class="align-middle">${nameHtml}</td>
+                    <td class="align-middle text-center">${statusBadge}</td>
+                    <td class="align-middle text-center">${actions}</td>
+                </tr>
+            `;
+        }).join('') || `<tr><td colspan="4" class="text-center text-muted py-3">${companyTerm ? 'Tidak ada perusahaan yang cocok.' : 'Belum ada perusahaan.'}</td></tr>`;
+
+        // Render SIKA Table
+        $('sikaMasterTableBody').innerHTML = masterSikas.map((s, idx) => {
+            const jsName = escapeHtml(s.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const statusBadge = s.is_active
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Aktif</span>'
+                : '<span class="badge bg-secondary-subtle text-secondary border">Nonaktif</span>';
+            const actions = canManageDailyWork ? `
+                <div class="d-inline-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;" title="Ubah Nama" onclick="editSikaName(${s.id}, '${jsName}')">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm ${s.is_active ? 'btn-outline-warning' : 'btn-outline-success'} py-0 px-2" style="font-size:11px;" title="${s.is_active ? 'Nonaktifkan' : 'Aktifkan'}" onclick="toggleSikaActive(${s.id})">
+                        <i class="bi ${s.is_active ? 'bi-toggle-on' : 'bi-toggle-off'}"></i> ${s.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    `
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;" title="Hapus (hanya untuk SIKA yang belum pernah dipakai)" onclick="deleteSika(${s.id}, '${jsName}')">
+                        <i class="bi bi-trash"></i>
+                    </button>`
+                </div>` : '<span class="text-muted">-</span>';
+            return `
+                <tr>
+                    <td class="align-middle text-muted">${idx + 1}</td>
+                    <td class="align-middle fw-semibold text-dark">${escapeHtml(s.name)}</td>
+                    <td class="align-middle text-center">${statusBadge}</td>
+                    <td class="align-middle text-center">${actions}</td>
+                </tr>
+            `;
+        }).join('') || '<tr><td colspan="4" class="text-center text-muted py-3">Belum ada pilihan SIKA.</td></tr>';
+    }
+
+    // =========================================================================
+    // HIERARCHICAL COMPANY DROPDOWNS & FILTER
+    // =========================================================================
+    const workSubconExpanded = {};
+    const filterSubconExpanded = {};
+    const filterCompanySet = new Set();
+
+    function getFilterEligibleCompanies(source) {
+        const list = source || masterCompanies || [];
+        const activeById = new Map();
+        const activeByName = new Map();
+
+        list.forEach(c => {
+            if (c.id !== undefined && c.id !== null) {
+                activeById.set(Number(c.id), !!c.is_active);
+            }
+            if (c.name) {
+                activeByName.set(String(c.name).toLowerCase(), !!c.is_active);
+            }
+        });
+
+        return list.filter(c => {
+            if (!c.is_active) return false;
+
+            if (c.category === 'subcon') {
+                if (c.parent_company_id && activeById.has(Number(c.parent_company_id))) {
+                    return activeById.get(Number(c.parent_company_id));
+                }
+                if (c.parent && typeof c.parent.is_active !== 'undefined') {
+                    return !!c.parent.is_active;
+                }
+                if (c.parent_name && activeByName.has(String(c.parent_name).toLowerCase())) {
+                    return activeByName.get(String(c.parent_name).toLowerCase());
+                }
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    function syncFilterCompanyStateWithActive() {
+        const eligible = getFilterEligibleCompanies(masterCompanies);
+        const validNameSet = new Set(eligible.map(c => c.name));
+        let stateChanged = false;
+
+        // 1. Bersihkan filterCompanySet dari perusahaan yang tidak lagi aktif / induknya tidak aktif
+        for (const name of Array.from(filterCompanySet)) {
+            if (!validNameSet.has(name)) {
+                filterCompanySet.delete(name);
+                stateChanged = true;
+            }
+        }
+
+        // 2. Bersihkan input hidden #companyFilter
+        const hiddenEl = $('companyFilter');
+        const labelEl = $('companyFilterTriggerLabel');
+        if (hiddenEl && hiddenEl.value) {
+            const rawList = hiddenEl.value.split(',').map(s => s.trim()).filter(Boolean);
+            const cleanedList = rawList.filter(name => validNameSet.has(name));
+            if (cleanedList.length !== rawList.length) {
+                hiddenEl.value = cleanedList.join(',');
+                stateChanged = true;
+            }
+        }
+
+        // 3. Sinkronkan label trigger filter
+        if (labelEl) {
+            if (filterCompanySet.size === 0) {
+                labelEl.textContent = 'Semua Perusahaan';
+            } else if (filterCompanySet.size === 1) {
+                labelEl.textContent = Array.from(filterCompanySet)[0];
+            } else {
+                labelEl.textContent = `${filterCompanySet.size} Perusahaan Dipilih`;
+            }
+        }
+
+        return stateChanged;
+    }
+
+    function getCompanyHierarchy(onlyActive = false) {
+        const list = onlyActive
+            ? getFilterEligibleCompanies(masterCompanies)
+            : (masterCompanies || []);
+
+        const roots = list.filter(c => !c.parent_company_id);
+        const childrenMap = new Map();
+        list.forEach(c => {
+            if (c.parent_company_id) {
+                if (!childrenMap.has(c.parent_company_id)) {
+                    childrenMap.set(c.parent_company_id, []);
+                }
+                childrenMap.get(c.parent_company_id).push(c);
+            }
+        });
+
+        const mainNodes = [];
+        const independents = [];
+
+        roots.forEach(r => {
+            const subs = childrenMap.get(r.id) || [];
+            if (subs.length > 0) {
+                mainNodes.push({
+                    ...r,
+                    subcons: subs
+                });
+            } else {
+                independents.push(r);
+            }
+        });
+
+        const handledSubconIds = new Set();
+        mainNodes.forEach(m => m.subcons.forEach(s => handledSubconIds.add(s.id)));
+        const orphanSubcons = list.filter(s => s.parent_company_id && !handledSubconIds.has(s.id));
+
+        return {
+            mainNodes,
+            independents,
+            orphanSubcons,
+            allList: list
+        };
+    }
+
+    function setWorkCompanyValue(name) {
+        const hiddenEl = $('workCompany');
+        const labelEl = $('workCompanyTriggerLabel');
+        const val = (name || '').trim();
+
+        if (hiddenEl) hiddenEl.value = val;
+        if (labelEl) {
+            labelEl.textContent = val || 'Pilih Perusahaan';
+            if (val) {
+                labelEl.classList.remove('text-muted');
+                labelEl.classList.add('fw-semibold', 'text-dark');
+            } else {
+                labelEl.classList.add('text-muted');
+                labelEl.classList.remove('fw-semibold', 'text-dark');
+            }
+        }
+    }
+
+    function selectWorkCompany(name) {
+        const comp = (masterCompanies || []).find(c => (c.name || '').toLowerCase() === (name || '').trim().toLowerCase());
+        if (comp && (comp.is_parent || comp.category === 'main' || String(comp.name).toLowerCase() === 'gde (all)' || String(comp.name).toLowerCase() === 'jotre (all)')) {
+            Swal.fire('Perhatian', `Perusahaan '${name}' merupakan perusahaan induk dan tidak dapat dipilih sebagai pelaksana pekerjaan. Silakan pilih subcon atau perusahaan pelaksana yang sesuai.`, 'warning');
+            return;
+        }
+
+        setWorkCompanyValue(name);
+        const triggerEl = $('workCompanyTrigger');
+        if (triggerEl) {
+            const dd = bootstrap.Dropdown.getInstance(triggerEl);
+            if (dd) dd.hide();
+        }
+        renderWorkCompanyDropdown($('workCompanySearch')?.value || '');
+    }
+
+    function toggleWorkCompanySubcon(event, parentName) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+        const currentOpen = (typeof workSubconExpanded[parentName] !== 'undefined') ? !!workSubconExpanded[parentName] : true;
+        workSubconExpanded[parentName] = !currentOpen;
+        renderWorkCompanyDropdown($('workCompanySearch')?.value || '');
+    }
+
+    function renderWorkCompanyDropdown(searchTerm = '') {
+        const container = $('workCompanyListContainer');
+        if (!container) return;
+
+        const currentVal = ($('workCompany')?.value || '').trim();
+        const q = (searchTerm || '').trim().toLowerCase();
+        const hierarchy = getCompanyHierarchy(true);
+
+        if (q) {
+            const matched = hierarchy.allList.filter(c => {
+                if (c.is_parent || c.category === 'main' || String(c.name).toLowerCase() === 'gde (all)' || String(c.name).toLowerCase() === 'jotre (all)') {
+                    return false;
+                }
+                const nameMatches = (c.name || '').toLowerCase().includes(q);
+                const parentMatches = (c.parent_name && c.parent_name.toLowerCase().includes(q)) ||
+                                      (c.parent_short_name && c.parent_short_name.toLowerCase().includes(q));
+                return nameMatches || parentMatches;
+            });
+
+            if (matched.length === 0) {
+                container.innerHTML = '<div class="p-3 text-center text-muted" style="font-size:12px;">Perusahaan tidak ditemukan.</div>';
+                return;
+            }
+
+            container.innerHTML = matched.map(c => {
+                const isSelected = currentVal.toLowerCase() === (c.name || '').toLowerCase();
+                const safeName = escapeHtml(c.name);
+                const jsName = safeName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const iconClass = c.parent_company_id ? 'bi-arrow-return-right text-muted' : 'bi-square text-muted';
+
+                return `
+                    <div class="company-tree-node d-flex align-items-center justify-content-between p-2 rounded mb-1 ${isSelected ? 'bg-teal-subtle text-teal fw-bold' : ''}" style="cursor:pointer;" onclick="selectWorkCompany('${jsName}')">
+                        <div class="d-flex align-items-center gap-2 text-truncate">
+                            <i class="bi ${iconClass}" style="font-size:12px;"></i>
+                            <span class="text-truncate" style="font-size:12px;">${safeName}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            return;
+        }
+
+        let html = '';
+
+        if (currentVal && !hierarchy.allList.some(c => (c.name || '').toLowerCase() === currentVal.toLowerCase())) {
+            html += `
+                <div class="p-2 mb-2 bg-warning-subtle text-dark border border-warning rounded d-flex justify-content-between align-items-center" style="font-size:11.5px;">
+                    <div>
+                        <i class="bi bi-exclamation-circle text-warning me-1"></i>
+                        <strong>${escapeHtml(currentVal)}</strong> <span class="text-muted">(Nonaktif/Histori)</span>
+                    </div>
+                    <i class="bi bi-check2 text-success fw-bold"></i>
+                </div>
+            `;
+        }
+
+        hierarchy.mainNodes.forEach(main => {
+            const isSelected = currentVal.toLowerCase() === (main.name || '').toLowerCase();
+            const safeMainName = escapeHtml(main.name);
+            const jsMainName = safeMainName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const hasSubcons = main.subcons && main.subcons.length > 0;
+            const isOpen = (typeof workSubconExpanded[main.name] !== 'undefined') ? !!workSubconExpanded[main.name] : true;
+
+            html += `
+                <div class="company-tree-node d-flex align-items-center justify-content-between p-1.5 rounded mb-0.5" style="cursor:pointer; background-color: #f8fafc;" onclick="toggleWorkCompanySubcon(event, '${jsMainName}')" title="Klik untuk membuka/menutup subcon">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                        <i class="bi bi-building text-secondary" style="font-size:11px;"></i>
+                        <span class="text-truncate fw-semibold text-dark" style="font-size:12px;">${safeMainName}</span>
+                        <span class="badge bg-secondary-subtle text-secondary border" style="font-size:9.5px; padding: 1.5px 5px; font-weight: 500;">Induk</span>
+                        ${isSelected ? `<span class="badge bg-warning-subtle text-dark border ms-1" style="font-size:9.5px; padding: 1.5px 5px;" title="Perusahaan ini tersimpan pada histori pekerjaan ini"><i class="bi bi-info-circle me-1"></i>Tersimpan</span>` : ''}
+                    </div>
+                    ${hasSubcons ? `
+                    <button type="button" class="btn-tree-chevron" onclick="toggleWorkCompanySubcon(event, '${jsMainName}')" title="${isOpen ? 'Tutup subcon' : 'Buka subcon'}">
+                        <i class="bi bi-chevron-${isOpen ? 'down' : 'right'}"></i>
+                    </button>
+                    ` : ''}
+                </div>
+            `;
+
+            if (hasSubcons && isOpen) {
+                html += '<div class="company-subcon-branch ms-3 ps-2 border-start mb-1">';
+                main.subcons.forEach(sub => {
+                    const isSubSelected = currentVal.toLowerCase() === (sub.name || '').toLowerCase();
+                    const safeSubName = escapeHtml(sub.name);
+                    const jsSubName = safeSubName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    html += `
+                        <div class="company-subcon-item d-flex align-items-center justify-content-between p-1.5 rounded mb-0.5 ${isSubSelected ? 'bg-teal-subtle text-teal fw-bold' : ''}" style="cursor:pointer;" onclick="selectWorkCompany('${jsSubName}')" title="Pilih ${safeSubName}">
+                            <div class="d-flex align-items-center gap-1.5 text-truncate">
+                                <i class="bi bi-arrow-return-right text-muted" style="font-size:11px;"></i>
+                                <span class="text-truncate" style="font-size:12px;">${safeSubName}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+        });
+
+        if (hierarchy.independents.length > 0) {
+            if (hierarchy.mainNodes.length > 0) {
+                html += '<div class="border-top my-1"></div>';
+            }
+            hierarchy.independents.forEach(ind => {
+                const isSelected = currentVal.toLowerCase() === (ind.name || '').toLowerCase();
+                const safeName = escapeHtml(ind.name);
+                const jsName = safeName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                html += `
+                    <div class="company-tree-node d-flex align-items-center justify-content-between p-1.5 rounded mb-0.5 ${isSelected ? 'bg-teal-subtle text-teal fw-bold' : ''}" style="cursor:pointer;" onclick="selectWorkCompany('${jsName}')" title="Pilih ${safeName}">
+                        <div class="d-flex align-items-center gap-2 text-truncate">
+                            <i class="bi bi-square ${isSelected ? 'text-teal' : 'text-muted'}" style="font-size:11px;"></i>
+                            <span class="text-truncate" style="font-size:12px;">${safeName}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        if (hierarchy.orphanSubcons.length > 0) {
+            html += '<div class="border-top my-1"></div>';
+            hierarchy.orphanSubcons.forEach(sub => {
+                const isSelected = currentVal.toLowerCase() === (sub.name || '').toLowerCase();
+                const safeName = escapeHtml(sub.name);
+                const jsName = safeName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                html += `
+                    <div class="company-tree-node d-flex align-items-center justify-content-between p-1.5 rounded mb-0.5 ${isSelected ? 'bg-teal-subtle text-teal fw-bold' : ''}" style="cursor:pointer;" onclick="selectWorkCompany('${jsName}')">
+                        <div class="d-flex align-items-center gap-2 text-truncate">
+                            <i class="bi bi-arrow-return-right text-muted" style="font-size:11px;"></i>
+                            <span class="text-truncate" style="font-size:12px;">${safeName}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        container.innerHTML = html;
+    }
+
+    // --- DASHBOARD COMPANY FILTER LOGIC ---
+    function getParentCheckState(parentName, subconNames) {
+        if (!subconNames || subconNames.length === 0) {
+            const isChecked = filterCompanySet.has(parentName);
+            return { checked: isChecked, indeterminate: false };
+        }
+
+        const parentChecked = filterCompanySet.has(parentName);
+        const checkedSubcons = subconNames.filter(name => filterCompanySet.has(name));
+        const allSubconsChecked = checkedSubcons.length === subconNames.length;
+        const someSubconsChecked = checkedSubcons.length > 0;
+
+        if (parentChecked && allSubconsChecked) {
+            return { checked: true, indeterminate: false };
+        }
+        if (!parentChecked && !someSubconsChecked) {
+            return { checked: false, indeterminate: false };
+        }
+        return { checked: false, indeterminate: true };
+    }
+
+    function toggleFilterParent(parentName, isChecked, subconNames) {
+        if (isChecked) {
+            filterCompanySet.add(parentName);
+            (subconNames || []).forEach(name => filterCompanySet.add(name));
+        } else {
+            filterCompanySet.delete(parentName);
+            (subconNames || []).forEach(name => filterCompanySet.delete(name));
+        }
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+    }
+
+    function handleFilterSubconClick(name, event) {
+        if (event) {
+            event.stopPropagation();
+            if (event.target && event.target.tagName === 'INPUT') {
+                return;
+            }
+            event.preventDefault();
+        }
+        toggleFilterCompanyItem(name);
+    }
+
+    function handleFilterParentClick(parentName, subconNames, event) {
+        if (event) {
+            event.stopPropagation();
+            if (event.target && (event.target.tagName === 'INPUT' || event.target.closest('.btn-tree-chevron'))) {
+                return;
+            }
+            event.preventDefault();
+        }
+        const checkState = getParentCheckState(parentName, subconNames);
+        const shouldCheck = !checkState.checked;
+        toggleFilterParent(parentName, shouldCheck, subconNames);
+    }
+
+    function handleFilterAllClick(event) {
+        if (event) {
+            event.stopPropagation();
+            if (event.target && event.target.tagName === 'INPUT') return;
+            event.preventDefault();
+        }
+        toggleFilterAll(true);
+    }
+
+    function toggleFilterCompanyItem(name, explicitChecked = null) {
+        if (explicitChecked !== null) {
+            if (explicitChecked) {
+                filterCompanySet.add(name);
+            } else {
+                filterCompanySet.delete(name);
+            }
+        } else {
+            if (filterCompanySet.has(name)) {
+                filterCompanySet.delete(name);
+            } else {
+                filterCompanySet.add(name);
+            }
+        }
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+    }
+
+    function toggleFilterParent(parentName, isChecked, subconNames) {
+        if (isChecked) {
+            filterCompanySet.add(parentName);
+            (subconNames || []).forEach(name => filterCompanySet.add(name));
+        } else {
+            filterCompanySet.delete(parentName);
+            (subconNames || []).forEach(name => filterCompanySet.delete(name));
+        }
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+    }
+
+    function toggleFilterAll(isChecked) {
+        if (isChecked) {
+            filterCompanySet.clear();
+        }
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+    }
+
+    function toggleFilterSubcon(event, parentName) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+        filterSubconExpanded[parentName] = !filterSubconExpanded[parentName];
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+    }
+
+    function syncFilterSetFromInput() {
+        filterCompanySet.clear();
+        const curVal = $('companyFilter')?.value || '';
+        if (curVal.trim()) {
+            const eligible = getFilterEligibleCompanies(masterCompanies);
+            const validNameSet = new Set(eligible.map(c => c.name));
+            curVal.split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+                if (validNameSet.has(name)) {
+                    filterCompanySet.add(name);
+                }
+            });
+        }
+    }
+
+    function renderCompanyFilterDropdown(searchTerm = '') {
+        const container = $('companyFilterListContainer');
+        if (!container) return;
+
+        const q = (searchTerm || '').trim().toLowerCase();
+        const hierarchy = getCompanyHierarchy(true);
+
+        if (q) {
+            const matched = hierarchy.allList.filter(c => {
+                const nameMatches = (c.name || '').toLowerCase().includes(q);
+                const parentMatches = (c.parent_name && c.parent_name.toLowerCase().includes(q)) ||
+                                      (c.parent_short_name && c.parent_short_name.toLowerCase().includes(q));
+                return nameMatches || parentMatches;
+            });
+
+            if (matched.length === 0) {
+                container.innerHTML = '<div class="p-3 text-center text-muted" style="font-size:12px;">Perusahaan tidak ditemukan.</div>';
+                return;
+            }
+
+            container.innerHTML = matched.map((c, i) => {
+                const isChecked = filterCompanySet.has(c.name);
+                const safeName = escapeHtml(c.name);
+                const jsName = safeName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const inputId = `filter_search_item_${i}`;
+
+                return `
+                    <div class="company-tree-node d-flex align-items-center justify-content-between py-1.5 px-2 rounded mb-0.5 ${isChecked ? 'bg-teal-subtle text-teal fw-semibold' : ''}" style="cursor:pointer;" onclick="handleFilterSubconClick('${jsName}', event)">
+                        <div class="d-flex align-items-center gap-2 text-truncate flex-grow-1">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" id="${inputId}" value="${safeName}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" onclick="event.stopPropagation(); toggleFilterCompanyItem('${jsName}', this.checked)">
+                            <span class="text-truncate" style="font-size:12px; cursor:pointer;">
+                                ${safeName}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            return;
+        }
+
+        let html = '';
+
+        const isAllSelected = filterCompanySet.size === 0;
+        html += `
+            <div class="form-check py-1.5 px-2 mb-1 pb-2 border-bottom d-flex align-items-center" style="cursor:pointer;" onclick="handleFilterAllClick(event)">
+                <input class="form-check-input mt-0 me-2 flex-shrink-0" type="checkbox" id="filterCompanyAll" ${isAllSelected ? 'checked' : ''} style="cursor:pointer;" onclick="event.stopPropagation(); toggleFilterAll(this.checked)">
+                <label class="form-check-label fw-bold text-dark mb-0" for="filterCompanyAll" style="font-size:12px; cursor:pointer;" onclick="event.stopPropagation();">
+                    Semua Perusahaan
+                </label>
+            </div>
+        `;
+
+        hierarchy.mainNodes.forEach((main, idx) => {
+            const hasSubcons = main.subcons && main.subcons.length > 0;
+            const subconNames = hasSubcons ? main.subcons.map(s => s.name) : [];
+            const checkState = getParentCheckState(main.name, subconNames);
+            const isOpen = !!filterSubconExpanded[main.name];
+            const safeMainName = escapeHtml(main.name);
+            const jsMainName = safeMainName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const mainInputId = `filter_main_${idx}`;
+            const subconJson = JSON.stringify(subconNames).replace(/"/g, '&quot;');
+
+            html += `
+                <div class="company-tree-node d-flex align-items-center justify-content-between py-1.5 px-2 rounded mb-0.5 ${hasSubcons ? '' : (checkState.checked ? 'bg-teal-subtle text-teal fw-semibold' : '')}" ${hasSubcons ? `onclick="handleFilterParentClick('${jsMainName}', ${subconJson}, event)"` : `onclick="handleFilterSubconClick('${jsMainName}', event)"`} style="cursor:pointer;">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                        <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" id="${mainInputId}" data-indeterminate="${checkState.indeterminate ? 'true' : 'false'}" ${checkState.checked ? 'checked' : ''} style="cursor:pointer;" onclick="event.stopPropagation(); ${hasSubcons ? `toggleFilterParent('${jsMainName}', this.checked, ${subconJson})` : `toggleFilterCompanyItem('${jsMainName}', this.checked)`}">
+                        <span class="text-truncate fw-semibold text-dark" style="font-size:12px; cursor:pointer;">
+                            ${safeMainName}
+                        </span>
+                    </div>
+                    ${hasSubcons ? `
+                    <button type="button" class="btn-tree-chevron" onclick="toggleFilterSubcon(event, '${jsMainName}')" title="${isOpen ? 'Tutup subcon' : 'Buka subcon'}">
+                        <i class="bi bi-chevron-${isOpen ? 'down' : 'right'}"></i>
+                    </button>
+                    ` : ''}
+                </div>
+            `;
+
+            if (hasSubcons && isOpen) {
+                html += '<div class="company-subcon-branch ms-4 ps-2 border-start mb-1">';
+                main.subcons.forEach((sub, sIdx) => {
+                    const isSubChecked = filterCompanySet.has(sub.name);
+                    const safeSubName = escapeHtml(sub.name);
+                    const jsSubName = safeSubName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const subInputId = `filter_sub_${idx}_${sIdx}`;
+
+                    html += `
+                        <div class="company-tree-node d-flex align-items-center justify-content-between py-1.5 px-2 rounded mb-0.5 ${isSubChecked ? 'bg-teal-subtle text-teal fw-semibold' : ''}" style="cursor:pointer;" onclick="handleFilterSubconClick('${jsSubName}', event)" title="Klik untuk memilih/membatalkan ${safeSubName}">
+                            <div class="d-flex align-items-center gap-2 text-truncate flex-grow-1">
+                                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" id="${subInputId}" value="${safeSubName}" ${isSubChecked ? 'checked' : ''} style="cursor:pointer;" onclick="event.stopPropagation(); toggleFilterCompanyItem('${jsSubName}', this.checked)">
+                                <span class="text-truncate" style="font-size:12px; cursor:pointer;">
+                                    ${safeSubName}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+        });
+
+        if (hierarchy.independents.length > 0) {
+            if (hierarchy.mainNodes.length > 0) {
+                html += '<div class="border-top my-1"></div>';
+            }
+            hierarchy.independents.forEach((ind, iIdx) => {
+                const isChecked = filterCompanySet.has(ind.name);
+                const safeName = escapeHtml(ind.name);
+                const jsName = safeName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const indInputId = `filter_ind_${iIdx}`;
+
+                html += `
+                    <div class="company-tree-node d-flex align-items-center justify-content-between py-1.5 px-2 rounded mb-0.5 ${isChecked ? 'bg-teal-subtle text-teal fw-semibold' : ''}" style="cursor:pointer;" onclick="handleFilterSubconClick('${jsName}', event)">
+                        <div class="d-flex align-items-center gap-2 text-truncate flex-grow-1">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" id="${indInputId}" value="${safeName}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" onclick="event.stopPropagation(); toggleFilterCompanyItem('${jsName}', this.checked)">
+                            <span class="text-truncate" style="font-size:12px; cursor:pointer;">
+                                ${safeName}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('input[data-indeterminate="true"]').forEach(el => {
+            el.indeterminate = true;
+        });
+    }
+
+    function applyCompanyFilter() {
+        const labelEl = $('companyFilterTriggerLabel');
+        const hiddenEl = $('companyFilter');
+
+        if (filterCompanySet.size === 0) {
+            if (hiddenEl) hiddenEl.value = '';
+            if (labelEl) labelEl.textContent = 'Semua Perusahaan';
+        } else if (filterCompanySet.size === 1) {
+            const singleVal = Array.from(filterCompanySet)[0];
+            if (hiddenEl) hiddenEl.value = singleVal;
+            if (labelEl) labelEl.textContent = singleVal;
+        } else {
+            const valStr = Array.from(filterCompanySet).join(',');
+            if (hiddenEl) hiddenEl.value = valStr;
+            if (labelEl) labelEl.textContent = `${filterCompanySet.size} Perusahaan Dipilih`;
+        }
+
+        closeCompanyFilterDropdown();
+        currentPage = 1;
+        fetchWorks();
+    }
+
+    function resetCompanyFilter() {
+        filterCompanySet.clear();
+        const hiddenEl = $('companyFilter');
+        const labelEl = $('companyFilterTriggerLabel');
+        if (hiddenEl) hiddenEl.value = '';
+        if (labelEl) labelEl.textContent = 'Semua Perusahaan';
+        if ($('companyFilterSearch')) $('companyFilterSearch').value = '';
+        renderCompanyFilterDropdown('');
+        closeCompanyFilterDropdown();
+        currentPage = 1;
+        fetchWorks();
+    }
+
+    function closeCompanyFilterDropdown() {
+        const triggerEl = $('companyFilterTrigger');
+        if (triggerEl) {
+            const dd = bootstrap.Dropdown.getInstance(triggerEl);
+            if (dd) dd.hide();
+        }
+    }
+
+    function syncSelectDropdowns() {
+        // Render hierarkis form perusahaan
+        renderWorkCompanyDropdown($('workCompanySearch')?.value || '');
+
+        // Sync Work Modal SIKA Checkboxes
+        if ($('workSikaContainer')) {
+            renderWorkSikaCheckboxes(getSelectedSikas());
+        }
+
+        // Render hierarkis filter dashboard perusahaan
+        renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+
+        // Sync Filter SIKA
+        const curFilterSika = $('sikaFilter')?.value;
+        if ($('sikaFilter')) {
+            $('sikaFilter').innerHTML = '<option value="">Semua SIKA</option>' + masterSikas.map(s => `
+                <option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}${s.is_active ? '' : ' (Nonaktif)'}</option>
+            `).join('');
+            if (curFilterSika) $('sikaFilter').value = curFilterSika;
+        }
+    }
+
+    function getSelectedSikas() {
+        const container = $('workSikaContainer');
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('.sika-checkbox:checked'))
+            .map(cb => cb.value.trim())
+            .filter(Boolean);
+    }
+
+    function renderWorkSikaCheckboxes(selectedValues = []) {
+        const container = $('workSikaContainer');
+        if (!container) return;
+
+        const selectedSet = new Set((selectedValues || []).map(v => String(v).trim()));
+
+        // Active SIKAs from master
+        const activeSikas = (masterSikas || []).filter(s => s.is_active);
+
+        // Include any legacy/inactive SIKA if it was previously selected for this work item (preserve history)
+        const legacySikas = (selectedValues || []).filter(v => {
+            const trimmed = String(v).trim();
+            return trimmed && !activeSikas.some(s => s.name.toLowerCase() === trimmed.toLowerCase());
+        });
+
+        const listToRender = [
+            ...activeSikas.map(s => ({ id: s.id, name: s.name, is_legacy: false })),
+            ...legacySikas.map((name, i) => ({ id: 'legacy_' + i, name: name, is_legacy: true }))
+        ];
+
+        if (listToRender.length === 0) {
+            container.innerHTML = '<span class="text-muted" style="font-size:12px;">Belum ada pilihan SIKA aktif.</span>';
+            return;
+        }
+
+        container.innerHTML = listToRender.map(s => {
+            const isChecked = selectedSet.has(s.name);
+            const inputId = `sika_${s.id}`;
+            const labelExtra = s.is_legacy ? ' <span class="text-muted" style="font-size:11px;">(Nonaktif/Histori)</span>' : '';
+            return `
+                <div class="form-check form-check-sm mb-1">
+                    <input class="form-check-input sika-checkbox" type="checkbox" value="${escapeHtml(s.name)}" id="${inputId}" ${isChecked ? 'checked' : ''}>
+                    <label class="form-check-label text-dark" for="${inputId}" style="font-size:12px; cursor:pointer;">
+                        ${escapeHtml(s.name)}${labelExtra}
+                    </label>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // --- Master Company Actions ---
+    function buildCompanyOptionGroups(companies) {
+        // Kelompokkan berdasarkan kategori & induk dari data master (tanpa daftar hardcoded)
+        const opt = c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
+        const html = [];
+
+        const main = companies.filter(c => c.category === 'main');
+        if (main.length) html.push(`<optgroup label="${escapeHtml(companyCategoryLabels.main || 'Perusahaan Utama')}">${main.map(opt).join('')}</optgroup>`);
+
+        const subByParent = {};
+        companies.filter(c => c.category === 'subcon').forEach(c => {
+            const key = c.parent_name || '';
+            (subByParent[key] = subByParent[key] || []).push(c);
+        });
+        Object.keys(subByParent).forEach(parent => {
+            const label = parent ? `Subcon (induk: ${parent})` : (companyCategoryLabels.subcon || 'Subcon');
+            html.push(`<optgroup label="${escapeHtml(label)}">${subByParent[parent].map(opt).join('')}</optgroup>`);
+        });
+
+        const independent = companies.filter(c => c.category === 'independent');
+        if (independent.length) html.push(`<optgroup label="${escapeHtml(companyCategoryLabels.independent || 'Perusahaan Independen')}">${independent.map(opt).join('')}</optgroup>`);
+
+        return html.join('');
+    }
+
+    function refreshParentCompanySelect(editingId = null) {
+        const parentSel = $('companyFormParent');
+        if (!parentSel) return;
+        // Pilihan induk: hanya perusahaan tingkat utama (tanpa induk) yang berstatus aktif, selain dirinya sendiri
+        const options = masterCompanies
+            .filter(c => c.is_active && !c.parent_company_id && c.id !== Number(editingId))
+            .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+            .join('');
+
+        parentSel.innerHTML = '<option value="">-- Pilih Perusahaan Induk --</option>' + options;
+    }
+
+    function onCompanyHasParentChange() {
+        const hasParent = document.querySelector('input[name="companyHasParent"]:checked')?.value === '1';
+        const wrap = $('companyParentWrap');
+        if (wrap) {
+            wrap.classList.toggle('d-none', !hasParent);
+        }
+        if (!hasParent && $('companyFormParent')) {
+            $('companyFormParent').value = '';
+        }
+    }
+
+    function showCompanyForm(id = null) {
+        if (!canManageDailyWork) return;
+        const company = id ? masterCompanies.find(c => c.id === Number(id)) : null;
+
+        refreshParentCompanySelect(company ? company.id : null);
+
+        $('companyFormId').value = company ? company.id : '';
+        $('companyFormTitle').textContent = company ? `Edit Perusahaan: ${company.name}` : 'Tambah Perusahaan';
+        $('companyFormName').value = company ? company.name : '';
+        $('companyFormName').readOnly = !!(company && company.is_required);
+        $('companyNameLockNote').classList.toggle('d-none', !(company && company.is_required));
+
+        const radioNo = $('companyHasParentNo');
+        const radioYes = $('companyHasParentYes');
+        const helpText = $('companyHasParentHelp');
+
+        // Periksa apakah perusahaan ini sudah menjadi induk dari subcon lain
+        const hasChildren = company && (
+            (company.children_count && Number(company.children_count) > 0) ||
+            masterCompanies.some(c => c.parent_company_id === company.id)
+        );
+
+        if (hasChildren) {
+            // Perusahaan yang sudah memiliki subcon tidak boleh dijadikan subcon (satu tingkat induk-subcon)
+            radioNo.checked = true;
+            radioYes.checked = false;
+            radioYes.disabled = true;
+            if (helpText) {
+                helpText.textContent = 'Perusahaan ini sudah menjadi induk bagi subcon, sehingga tidak dapat dijadikan subcon.';
+            }
+        } else {
+            radioYes.disabled = false;
+            if (company && company.parent_company_id) {
+                radioYes.checked = true;
+                radioNo.checked = false;
+            } else {
+                radioNo.checked = true;
+                radioYes.checked = false;
+            }
+            if (helpText) {
+                helpText.textContent = 'Pilih "Ya" jika perusahaan ini berada di bawah naungan perusahaan induk lain.';
+            }
+        }
+
+        onCompanyHasParentChange();
+
+        if (company && company.parent_company_id) {
+            $('companyFormParent').value = String(company.parent_company_id);
+        }
+
+        $('companyFormActive').value = company ? (company.is_active ? '1' : '0') : '1';
+
+        $('companyFormPanel').classList.remove('d-none');
+        $('companyFormName').focus();
+    }
+
+    function hideCompanyForm() {
+        $('companyFormPanel').classList.add('d-none');
+        $('companyFormId').value = '';
+        $('companyFormName').value = '';
+        $('companyFormParent').value = '';
+        $('companyHasParentNo').checked = true;
+        $('companyHasParentYes').checked = false;
+        $('companyHasParentYes').disabled = false;
+        $('companyParentWrap').classList.add('d-none');
+    }
+
+    function applyCompaniesResponse(data) {
+        masterCompanies = data.companies || masterCompanies;
+        if (data.filter_companies) {
+            filterCompanies = data.filter_companies;
+        }
+        renderMasterTables();
+        const filterChanged = syncFilterCompanyStateWithActive();
+        syncSelectDropdowns();
+        if (filterChanged) {
+            currentPage = 1;
+            fetchWorks();
+        }
+    }
+
+    function companyErrorMessage(data, fallback) {
+        if (data && data.errors) {
+            const first = Object.values(data.errors)[0];
+            if (first && first[0]) return first[0];
+        }
+        return (data && data.message) || fallback;
+    }
+
+    function submitCompanyForm() {
+        const id = $('companyFormId').value;
+        const name = $('companyFormName').value.trim();
+        if (!name) {
+            Swal.fire('Perhatian', 'Nama perusahaan wajib diisi.', 'warning');
+            return;
+        }
+
+        const hasParent = document.querySelector('input[name="companyHasParent"]:checked')?.value === '1';
+        const parentId = $('companyFormParent').value;
+
+        if (hasParent && !parentId) {
+            Swal.fire('Perhatian', 'Perusahaan Induk wajib dipilih jika memilih opsi Ya (Subcon).', 'warning');
+            return;
+        }
+
+        const btn = $('btnSaveCompany');
+        btn.disabled = true;
+
+        fetch(id ? `/daily-work/masters/companies/${id}` : '/daily-work/masters/companies', {
+            method: id ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                name: name,
+                has_parent: hasParent,
+                parent_company_id: hasParent ? Number(parentId) : null,
+                category: hasParent ? 'subcon' : 'independent',
+                is_active: $('companyFormActive').value === '1'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                applyCompaniesResponse(data);
+                hideCompanyForm();
+                if (id) fetchWorks();
+                Swal.fire({ icon: 'success', title: id ? 'Tersimpan' : 'Berhasil', text: data.message, timer: 1500, showConfirmButton: false });
+            } else {
+                Swal.fire('Gagal', companyErrorMessage(data, 'Gagal menyimpan perusahaan.'), 'error');
+            }
+        })
+        .catch(() => Swal.fire('Gagal', 'Terjadi kesalahan jaringan saat menyimpan perusahaan.', 'error'))
+        .finally(() => { btn.disabled = false; });
+    }
+
+    function toggleCompanyActive(id) {
+        const company = masterCompanies.find(c => c.id === Number(id));
+        if (!company) return;
+        const activating = !company.is_active;
+
+        Swal.fire({
+            title: activating ? 'Aktifkan Perusahaan?' : 'Nonaktifkan Perusahaan?',
+            html: activating
+                ? `<b>${escapeHtml(company.name)}</b> akan kembali tersedia sebagai pilihan pada pekerjaan baru.`
+                : `<b>${escapeHtml(company.name)}</b> tidak akan muncul sebagai pilihan pekerjaan baru.<br><small class="text-muted">Histori pekerjaan lama tetap tercatat dengan nama perusahaan ini.</small>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: activating ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+
+            fetch(`/daily-work/masters/companies/${id}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ is_active: activating })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    applyCompaniesResponse(data);
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: data.message, timer: 1500, showConfirmButton: false });
+                } else {
+                    Swal.fire('Gagal', companyErrorMessage(data, 'Gagal mengubah status perusahaan.'), 'error');
+                }
+            })
+            .catch(() => Swal.fire('Gagal', 'Terjadi kesalahan jaringan.', 'error'));
+        });
+    }
+
+    function deleteCompany(id) {
+        const company = masterCompanies.find(c => c.id === Number(id));
+        if (!company) return;
+
+        Swal.fire({
+            title: 'Hapus Perusahaan?',
+            html: `Apakah Anda yakin ingin menghapus <b>"${escapeHtml(company.name)}"</b>?<br><small class="text-muted">Hanya perusahaan yang belum pernah dipakai yang dapat dihapus. Untuk pergantian vendor, gunakan Nonaktifkan.</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Hapus',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (result.isConfirmed) {
+                fetch(`/daily-work/masters/companies/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        applyCompaniesResponse(data);
+                        Swal.fire({ icon: 'success', title: 'Terhapus', text: data.message, timer: 1500, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Tidak Dapat Dihapus', companyErrorMessage(data, 'Gagal menghapus.'), 'warning');
+                    }
+                })
+                .catch(() => Swal.fire('Gagal', 'Terjadi kesalahan jaringan.', 'error'));
+            }
+        });
+    }
+
+    // --- Master SIKA Actions ---
+    function submitAddSika() {
+        const name = $('newSikaName').value.trim();
+        if (!name) return;
+
+        fetch('/daily-work/masters/sika', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ name: name })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                $('newSikaName').value = '';
+                masterSikas = data.sikas || data.sikkas || masterSikas;
+                renderMasterTables();
+                syncSelectDropdowns();
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: data.message, timer: 1500, showConfirmButton: false });
+            } else {
+                Swal.fire('Gagal', data.message || 'Gagal menambahkan SIKA.', 'error');
+            }
+        });
+    }
+
+    function editSikaName(id, oldName) {
+        Swal.fire({
+            title: 'Edit Jenis SIKA',
+            input: 'text',
+            inputValue: oldName,
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal',
+            inputValidator: (val) => {
+                if (!val || !val.trim()) return 'Nama SIKA tidak boleh kosong!';
+            }
+        }).then(result => {
+            if (result.isConfirmed) {
+                fetch(`/daily-work/masters/sika/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ name: result.value.trim() })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        masterSikas = data.sikas || data.sikkas || masterSikas;
+                        renderMasterTables();
+                        syncSelectDropdowns();
+                        fetchWorks();
+                        Swal.fire({ icon: 'success', title: 'Tersimpan', text: data.message, timer: 1500, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Gagal', data.message || 'Gagal memperbarui SIKA.', 'error');
+                    }
+                });
+            }
+        });
+    }
+
+    function deleteSika(id, name) {
+        Swal.fire({
+            title: 'Hapus Pilihan SIKA?',
+            html: `Apakah Anda yakin ingin menghapus <b>"${name}"</b>?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Hapus',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (result.isConfirmed) {
+                fetch(`/daily-work/masters/sika/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        masterSikas = data.sikas || data.sikkas || masterSikas;
+                        renderMasterTables();
+                        syncSelectDropdowns();
+                        Swal.fire({ icon: 'success', title: 'Terhapus', text: data.message, timer: 1500, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Tidak Dapat Dihapus', data.message || 'Gagal menghapus SIKA.', 'warning');
+                    }
+                });
+            }
+        });
+    }
+
+    function toggleSikaActive(id) {
+        fetch(`/daily-work/masters/sika/${id}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                masterSikas = data.sikas || data.sikkas || masterSikas;
+                renderMasterTables();
+                syncSelectDropdowns();
+                Swal.fire({ icon: 'success', title: 'Status Diperbarui', text: data.message, timer: 1200, showConfirmButton: false });
+            } else {
+                Swal.fire('Gagal', data.message || 'Gagal mengubah status SIKA.', 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error toggling SIKA status:', err);
+            Swal.fire('Error', 'Terjadi kesalahan sistem.', 'error');
+        });
+    }
+
+    // =========================================================================
+    // EXPORT PDF (SESUAI MODE TAMPILAN: HARI INI ATAU SEMUA RIWAYAT)
+    // =========================================================================
+    function exportPDF() {
+        const params = new URLSearchParams();
+        params.set('date_mode', currentMode);
+
+        const comp = $('companyFilter')?.value;
+        const sika = $('sikaFilter')?.value;
+        const startVal = $('startDateFilter')?.value;
+        const endVal = $('endDateFilter')?.value;
+        const searchVal = $('searchInput')?.value?.trim();
+
+        if (comp) params.set('company', comp);
+        if (sika) params.set('sika', sika);
+        if (currentMode !== 'today' || hasManualDateFilter) {
+            if (startVal) params.set('start_date', startVal);
+            if (endVal) params.set('end_date', endVal);
+        }
+        if (searchVal) params.set('search', searchVal);
+
+        window.location.href = '{{ route('daily-work.export') }}?' + params.toString();
+    }
+
+    // =========================================================================
+    // INITIALIZATION & EVENT LISTENERS
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        // Hierarchical company search listeners
+        $('workCompanySearch')?.addEventListener('input', function() {
+            renderWorkCompanyDropdown(this.value);
+        });
+
+        $('companyFilterSearch')?.addEventListener('input', function() {
+            renderCompanyFilterDropdown(this.value);
+        });
+
+        $('companyFilterTrigger')?.addEventListener('show.bs.dropdown', function() {
+            syncFilterSetFromInput();
+            renderCompanyFilterDropdown($('companyFilterSearch')?.value || '');
+        });
+
+        // Filter event listeners
+        ['companyFilter', 'sikaFilter'].forEach(id => {
+            $(id)?.addEventListener('change', () => {
+                currentPage = 1;
+                fetchWorks();
+            });
+        });
+
+        ['startDateFilter', 'endDateFilter'].forEach(id => {
+            $(id)?.addEventListener('change', handleDateFilterChange);
+            $(id)?.addEventListener('input', handleDateFilterChange);
+        });
+
+        $('searchInput')?.addEventListener('input', () => {
+            currentPage = 1;
+            fetchWorks();
+        });
+
+        $('perPage')?.addEventListener('change', () => {
+            currentPage = 1;
+            renderTable();
+        });
+
+        // Initialize dropdowns, table, and pie chart
+        if (currentMode === 'today') {
+            $('btnModeToday')?.classList.add('active');
+            $('btnModeAll')?.classList.remove('active');
+            if (!hasManualDateFilter) {
+                if ($('startDateFilter')) $('startDateFilter').value = todayStr;
+                if ($('endDateFilter')) $('endDateFilter').value = todayStr;
+            }
+        } else {
+            $('btnModeAll')?.classList.add('active');
+            $('btnModeToday')?.classList.remove('active');
+            if ($('startDateFilter')) $('startDateFilter').value = '';
+            if ($('endDateFilter')) $('endDateFilter').value = '';
+            updateHeaderLabels(null, null);
+        }
+        syncFilterSetFromInput();
+        const initialFilterChanged = syncFilterCompanyStateWithActive();
+        syncSelectDropdowns();
+        renderTable();
+        renderPieChart(@json($companyDistribution ?? []));
+        if (initialFilterChanged) {
+            currentPage = 1;
+            fetchWorks();
+        }
+    });
+</script>
+@endpush
