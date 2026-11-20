@@ -325,24 +325,45 @@ class EventController extends Controller
             $eventArr['safeguard_badges'] = $event->safeguard_badges_data;
             $eventArr['formatted_date_range'] = $event->formatted_date_range;
 
+            $documentsList = $event->documents->map(function ($doc) {
+                return [
+                    'id' => $doc->id,
+                    'title' => $doc->title,
+                    'file_name' => $doc->file_name,
+                    'file_path' => $doc->file_path,
+                    'file_url' => route('events.documentation.view', $doc->id),
+                    'download_url' => route('events.documentation.download', $doc->id),
+                    'mime_type' => $doc->mime_type,
+                    'file_size' => $doc->file_size,
+                    'created_at' => $doc->created_at ? $doc->created_at->format('d/m/Y H:i') : null,
+                ];
+            });
+
+            // Dukungan data legacy: jika belum ada record Document namun kolom events.documentation terisi
+            if ($documentsList->isEmpty() && !empty($event->documentation)) {
+                $legacyName = basename($event->documentation);
+                $documentsList = collect([
+                    [
+                        'id' => null,
+                        'title' => pathinfo($legacyName, PATHINFO_FILENAME),
+                        'file_name' => $legacyName,
+                        'file_path' => $event->documentation,
+                        'file_url' => route('events.view-doc', $event->id),
+                        'download_url' => route('events.download-doc', $event->id),
+                        'mime_type' => 'image/jpeg',
+                        'file_size' => null,
+                        'created_at' => $event->created_at ? $event->created_at->format('d/m/Y H:i') : null,
+                    ]
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'event' => $eventArr,
                 'safeguard_functions' => $event->safeguard_functions_list,
                 'safeguard_badges' => $event->safeguard_badges_data,
                 'formatted_date_range' => $event->formatted_date_range,
-                'documents' => $event->documents->map(function ($doc) {
-                    return [
-                        'id' => $doc->id,
-                        'title' => $doc->title,
-                        'file_name' => $doc->file_name,
-                        'file_path' => $doc->file_path,
-                        'file_url' => $doc->file_url,
-                        'mime_type' => $doc->mime_type,
-                        'file_size' => $doc->file_size,
-                        'created_at' => $doc->created_at ? $doc->created_at->format('d/m/Y H:i') : null,
-                    ];
-                }),
+                'documents' => $documentsList,
                 'logs' => $event->activityLogs->map(function ($log) {
                     return [
                         'id' => $log->id,
@@ -847,6 +868,93 @@ class EventController extends Controller
     }
 
     /**
+     * Cari lokasi fisik berkas di storage server (kompatibel penuh dengan shared hosting).
+     */
+    private function resolvePhysicalPath(?string $filePath): ?string
+    {
+        if (empty($filePath)) {
+            return null;
+        }
+
+        $clean = ltrim(str_replace('\\', '/', $filePath), '/');
+        if ($clean === '' || str_contains($clean, '..')) {
+            return null;
+        }
+
+        // Hapus prefix "storage/" bila ada
+        $cleanWithoutStorage = str_starts_with($clean, 'storage/') ? substr($clean, 8) : $clean;
+
+        $candidates = [
+            Storage::disk('public')->path($cleanWithoutStorage),
+            storage_path('app/public/' . $cleanWithoutStorage),
+            storage_path('app/' . $cleanWithoutStorage),
+            public_path('storage/' . $cleanWithoutStorage),
+            public_path($clean),
+            Storage::disk('local')->path($cleanWithoutStorage),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate) && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tampilkan berkas dokumentasi event secara inline di browser (pratinjau foto/dokumen).
+     */
+    public function viewDocumentation($documentId): BinaryFileResponse|Response
+    {
+        $doc = Document::whereIn('module', ['events', 'Events'])->find($documentId);
+
+        if (!$doc) {
+            abort(404, 'Dokumen kegiatan tidak ditemukan.');
+        }
+
+        $fullPath = $this->resolvePhysicalPath($doc->file_path);
+
+        if (!$fullPath) {
+            abort(404, "Berkas fisik \"{$doc->file_name}\" tidak ditemukan di server.");
+        }
+
+        $mime = $doc->mime_type ?: (mime_content_type($fullPath) ?: 'application/octet-stream');
+        $safeName = str_replace(['"', "\r", "\n", '\\', '/'], '_', (string) ($doc->file_name ?: basename($fullPath)));
+
+        return response()->file($fullPath, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . $safeName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * Tampilkan berkas dokumentasi utama event secara inline (legacy single-file event).
+     */
+    public function viewEventDocumentation($eventId): BinaryFileResponse|Response
+    {
+        $event = Event::with('documents')->findOrFail($eventId);
+        $doc = $event->documents->first();
+        $filePath = $doc ? $doc->file_path : $event->documentation;
+
+        $fullPath = $this->resolvePhysicalPath($filePath);
+
+        if (!$fullPath) {
+            abort(404, "Berkas fisik dokumentasi kegiatan \"{$event->title}\" tidak ditemukan di server.");
+        }
+
+        $mime = ($doc && $doc->mime_type) ? $doc->mime_type : (mime_content_type($fullPath) ?: 'image/jpeg');
+        $safeName = str_replace(['"', "\r", "\n", '\\', '/'], '_', (string) ($doc ? $doc->file_name : basename($fullPath)));
+
+        return response()->file($fullPath, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . $safeName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
      * Unduh file dokumentasi kegiatan tertentu via ID Dokumen.
      */
     public function downloadDocumentation($documentId): BinaryFileResponse|RedirectResponse
@@ -857,12 +965,12 @@ class EventController extends Controller
             return back()->with('error', 'Dokumen tidak ditemukan.');
         }
 
-        $disk = Storage::disk('public');
-        if (empty($doc->file_path) || !$disk->exists($doc->file_path)) {
+        $fullPath = $this->resolvePhysicalPath($doc->file_path);
+        if (!$fullPath) {
             return back()->with('error', "File fisik \"{$doc->file_name}\" tidak ditemukan di server.");
         }
 
-        return response()->download($disk->path($doc->file_path), $doc->file_name);
+        return response()->download($fullPath, $doc->file_name);
     }
 
     /**
@@ -872,16 +980,15 @@ class EventController extends Controller
     {
         $event = Event::with('documents')->findOrFail($eventId);
         $doc = $event->documents->first();
-
-        $disk = Storage::disk('public');
         $filePath = $doc ? $doc->file_path : $event->documentation;
 
-        if (empty($filePath) || !$disk->exists($filePath)) {
+        $fullPath = $this->resolvePhysicalPath($filePath);
+        if (!$fullPath) {
             return back()->with('error', "File dokumentasi kegiatan \"{$event->title}\" belum diunggah atau tidak ditemukan.");
         }
 
-        $fileName = $doc ? $doc->file_name : basename($filePath);
-        return response()->download($disk->path($filePath), $fileName);
+        $fileName = $doc ? $doc->file_name : basename($fullPath);
+        return response()->download($fullPath, $fileName);
     }
 
     /**

@@ -375,15 +375,43 @@ class Event extends Model
 
     public function getPrimaryDocumentationUrlAttribute(): ?string
     {
+        // 1. Cari dokumen foto pertama dari relasi documents
+        $firstImgDoc = $this->relationLoaded('documents')
+            ? $this->documents->first(function ($doc) {
+                $ext = strtolower(pathinfo($doc->file_name ?: $doc->file_path, PATHINFO_EXTENSION));
+                return in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'])
+                    || str_starts_with((string) $doc->mime_type, 'image/');
+            })
+            : $this->documents()->where(function ($q) {
+                $q->where('mime_type', 'like', 'image/%')
+                  ->orWhere('file_path', 'like', '%.jpg')
+                  ->orWhere('file_path', 'like', '%.jpeg')
+                  ->orWhere('file_path', 'like', '%.png')
+                  ->orWhere('file_path', 'like', '%.webp')
+                  ->orWhere('file_path', 'like', '%.gif');
+            })->first();
+
+        if ($firstImgDoc) {
+            return $firstImgDoc->file_url;
+        }
+
+        // 2. Fallback ke kolom legacy documentation pada tabel events
         if (!empty($this->documentation)) {
             if (str_starts_with($this->documentation, 'http://') || str_starts_with($this->documentation, 'https://')) {
                 return $this->documentation;
             }
+            if ($this->exists) {
+                try {
+                    return route('events.view-doc', $this->id);
+                } catch (\Throwable) {
+                }
+            }
             return Storage::disk('public')->url($this->documentation);
         }
 
-        $firstDoc = $this->relationLoaded('documents') ? $this->documents->first() : $this->documents()->first();
-        return $firstDoc?->file_url;
+        // 3. Fallback bila tidak ada filter gambar spesifik
+        $anyDoc = $this->relationLoaded('documents') ? $this->documents->first() : $this->documents()->first();
+        return $anyDoc?->file_url;
     }
 
     public function getCategoryColorAttribute(): string

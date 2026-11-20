@@ -23,6 +23,10 @@ class Document extends Model
         'description',
     ];
 
+    protected $appends = [
+        'file_url',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -39,6 +43,14 @@ class Document extends Model
 
         if (str_starts_with($this->file_path, 'http://') || str_starts_with($this->file_path, 'https://')) {
             return $this->file_path;
+        }
+
+        if ($this->exists && in_array(strtolower((string) $this->module), ['events', 'event'])) {
+            try {
+                return route('events.documentation.view', $this->id);
+            } catch (\Throwable) {
+                // fallback bila route context tidak tersedia
+            }
         }
 
         return Storage::disk('public')->url($this->file_path);

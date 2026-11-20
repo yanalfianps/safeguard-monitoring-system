@@ -1164,8 +1164,8 @@
                         @endphp
                         <div class="event-list-item">
                             <div class="event-thumb-box">
-                                @if(!empty($event->documentation) && file_exists(public_path('storage/' . $event->documentation)))
-                                    <img src="{{ asset('storage/' . $event->documentation) }}" alt="Event">
+                                @if(!empty($event->primary_documentation_url))
+                                    <img src="{{ $event->primary_documentation_url }}" alt="{{ $event->title }}" onerror="this.parentElement.innerHTML='<i class=\'bi bi-image\'></i>'">
                                 @else
                                     <i class="bi bi-image"></i>
                                 @endif

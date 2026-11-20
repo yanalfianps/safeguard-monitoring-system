@@ -91,7 +91,9 @@ Route::prefix('events')->name('events.')->middleware(['auth', 'not.inventory'])-
     Route::get('/', [EventController::class, 'index'])->name('index');
     Route::get('/check-duplicate', [EventController::class, 'checkDuplicate'])->name('check-duplicate');
     Route::get('/companies', [EventController::class, 'getCompanies'])->name('companies.index');
+    Route::get('/documentation/{documentId}/view', [EventController::class, 'viewDocumentation'])->name('documentation.view');
     Route::get('/documentation/{documentId}/download', [EventController::class, 'downloadDocumentation'])->name('documentation.download');
+    Route::get('/{event}/view-doc', [EventController::class, 'viewEventDocumentation'])->name('view-doc');
     Route::get('/{event}/download-doc', [EventController::class, 'downloadEventDocumentation'])->name('download-doc');
 
     // Export PDF (Admin Management & User; Admin Inventory ditolak)

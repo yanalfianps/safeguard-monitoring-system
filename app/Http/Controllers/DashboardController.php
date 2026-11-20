@@ -280,8 +280,8 @@ class DashboardController extends Controller
         $data['gas_lel_status'] = $gas_lel_status;
         $data['gas_pressure_status'] = $gas_pressure_status;
 
-        // 1. Query Kegiatan Terbaru (Events) - limit 5 urut dari tanggal pelaksanaan terbaru
-        $recent_events = Event::orderBy('event_date', 'desc')->take(5)->get();
+        // 1. Query Kegiatan Terbaru (Events) - limit 5 urut dari tanggal pelaksanaan terbaru (eager load documents)
+        $recent_events = Event::with('documents')->orderBy('event_date', 'desc')->take(5)->get();
 
         // 2. Query Pekerjaan Hari Ini (Daily Work) - menggunakan single source of truth & timezone Asia/Jakarta
         $today_wib = Carbon::now('Asia/Jakarta')->locale('id');

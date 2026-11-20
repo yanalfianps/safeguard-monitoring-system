@@ -480,6 +480,24 @@ class EventManagementTest extends TestCase
         // 5. Unduh zip/all dokumentasi event
         $downloadAllRes = $this->actingAs($admin)->get("/events/{$event->id}/download-doc");
         $downloadAllRes->assertStatus(200);
+
+        // 6. Pratinjau berkas dokumen inline (view)
+        $viewDocRes = $this->actingAs($admin)->get("/events/documentation/{$firstDoc->id}/view");
+        $viewDocRes->assertStatus(200);
+        $this->assertStringContainsString('inline;', (string) $viewDocRes->headers->get('Content-Disposition'));
+
+        // 7. Pratinjau dokumentasi event view-doc
+        $viewEventDocRes = $this->actingAs($admin)->get("/events/{$event->id}/view-doc");
+        $viewEventDocRes->assertStatus(200);
+        $this->assertStringContainsString('inline;', (string) $viewEventDocRes->headers->get('Content-Disposition'));
+
+        // 8. Cek primary_documentation_url dan file_url pada response detail event
+        $this->assertNotEmpty($event->primary_documentation_url);
+        $showWithDocsRes = $this->actingAs($admin)->getJson("/events/{$event->id}");
+        $showWithDocsRes->assertStatus(200);
+        $docData = $showWithDocsRes->json('event.documents.0');
+        $this->assertNotNull($docData);
+        $this->assertStringContainsString('/events/documentation/', $docData['file_url']);
     }
 
     public function test_date_range_picker_single_company_and_multiple_safeguard_functions(): void
@@ -547,6 +565,45 @@ class EventManagementTest extends TestCase
             'status' => 'Direncanakan',
         ]);
         $emptySafeguardRes->assertSessionHasErrors(['safeguard_functions']);
+    }
+
+    public function test_dashboard_renders_recent_events_with_primary_documentation_url(): void
+    {
+        $admin = $this->getAdmin();
+        Storage::fake('public');
+
+        $file = UploadedFile::fake()->image('kegiatan-terbaru.jpg');
+        $storedPath = $file->store('events/documentation', 'public');
+
+        $event = Event::create([
+            'title' => 'Sosialisasi K3 Dashboard Test',
+            'category' => 'Sosialisasi',
+            'unit' => 'PMU',
+            'event_date' => now()->toDateString(),
+            'status' => 'Selesai',
+            'location' => 'Dieng',
+            'pic' => 'Admin HSSE',
+        ]);
+
+        $doc = \App\Models\Document::create([
+            'title' => 'kegiatan-terbaru',
+            'document_type' => 'Foto Kegiatan',
+            'module' => 'events',
+            'record_id' => $event->id,
+            'file_name' => 'kegiatan-terbaru.jpg',
+            'file_path' => $storedPath,
+            'mime_type' => 'image/jpeg',
+            'file_size' => 1024,
+            'uploaded_by' => $admin->name,
+        ]);
+
+        $this->assertNotEmpty($event->fresh()->primary_documentation_url);
+        $this->assertEquals(route('events.documentation.view', $doc->id), $event->fresh()->primary_documentation_url);
+
+        $dashRes = $this->actingAs($admin)->get(route('dashboard'));
+        $dashRes->assertStatus(200);
+        $dashRes->assertSee('Sosialisasi K3 Dashboard Test');
+        $dashRes->assertSee(route('events.documentation.view', $doc->id), false);
     }
 }
 
