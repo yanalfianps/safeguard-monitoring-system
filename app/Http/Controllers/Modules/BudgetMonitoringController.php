@@ -1809,8 +1809,13 @@ class BudgetMonitoringController extends Controller
             ]);
         }
 
+        $sourceWbs = BudgetWbs::find($validated['source_wbs_id']);
+        $destWbs = BudgetWbs::find($validated['destination_wbs_id']);
+        $sourceWbsNumber = $sourceWbs ? $sourceWbs->wbs_number : ('WBS #' . $validated['source_wbs_id']);
+        $destWbsNumber = $destWbs ? $destWbs->wbs_number : ('WBS #' . $validated['destination_wbs_id']);
+
         return redirect()->route('budget-monitoring.index', ['tab' => 'pengalihan'])
-            ->with('success', "Pengalihan anggaran {$transfer->transfer_number} sebesar " . BudgetWbs::formatRupiah($amount) . " dari {$sourceWbs->wbs_number} ke {$destWbs->wbs_number} berhasil disimpan.");
+            ->with('success', "Pengalihan anggaran {$transfer->transfer_number} sebesar " . BudgetWbs::formatRupiah($amount) . " dari {$sourceWbsNumber} ke {$destWbsNumber} berhasil disimpan.");
     }
 
     /**

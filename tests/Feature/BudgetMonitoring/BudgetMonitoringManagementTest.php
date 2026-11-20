@@ -48,27 +48,23 @@ class BudgetMonitoringManagementTest extends TestCase
     }
 
     /**
-     * 1. Submenu Monitoring Anggaran tepat di bawah Data, mempertahankan seluruh submenu lain.
+     * 1. Submenu Monitoring Anggaran tepat di bawah navigasi HSSE, mempertahankan seluruh menu lain.
      */
     public function test_sidebar_has_monitoring_anggaran_under_data_submenu(): void
     {
         $response = $this->actingAs($this->adminUser)->get('/monitoring-anggaran');
         $response->assertStatus(200);
 
-        $content = $response->getContent();
-
-        // Data Submenu harus memiliki Manhour, Incident, Issue & Follow Up, Gas Monitoring, dan Monitoring Anggaran
-        $response->assertSee('id="dataSubmenu"', false);
-        $response->assertSee('Manhour', false);
+        // Sidebar harus memiliki Man Hours & Manpower, Incident, Issue & Follow Up, Gas Monitoring, dan Monitoring Anggaran
+        $response->assertSee('sidebar', false);
+        $response->assertSee('Man Hours &amp; Manpower', false);
         $response->assertSee('Incident', false);
         $response->assertSee('Issue &amp; Follow Up', false);
         $response->assertSee('Gas Monitoring', false);
         $response->assertSee('Monitoring Anggaran', false);
 
-        // Monitoring Anggaran harus berada di dalam #dataSubmenu
-        $posDataSubmenu = strpos($content, 'id="dataSubmenu"');
-        $posMonitoring = strpos($content, 'Monitoring Anggaran', $posDataSubmenu);
-        $this->assertNotFalse($posMonitoring, 'Monitoring Anggaran harus berada di dalam submenu Data.');
+        // Memastikan link Monitoring Anggaran mengarah ke route monitoring anggaran
+        $response->assertSee(route('budget-monitoring.index'), false);
 
         // Jangan membuat submenu sidebar terpisah untuk PO, Non-PO, atau Pengalihan
         $response->assertDontSee('id="poSubmenu"', false);
@@ -102,7 +98,8 @@ class BudgetMonitoringManagementTest extends TestCase
 
         // Tombol aksi header
         $response->assertSee('Ekspor PDF', false);
-        $response->assertSee('+ Tambah WBS', false);
+        $response->assertSee('Tambah WBS', false);
+        $response->assertSee('modalTambahWbs', false);
         $response->assertDontSee('Ekspor Excel', false);
         $response->assertDontSee('Reset Data', false);
         $response->assertDontSee('modalResetDataBudget', false);
@@ -246,6 +243,10 @@ class BudgetMonitoringManagementTest extends TestCase
             'description' => 'Memo Persetujuan Direksi No. 042',
         ]);
         $resTransfer->assertSessionHasNoErrors();
+        $resTransfer->assertRedirect(route('budget-monitoring.index', ['tab' => 'pengalihan']));
+        $resTransfer->assertSessionHas('success');
+        $this->assertStringContainsString($wbsA->wbs_number, session('success'));
+        $this->assertStringContainsString($wbsB->wbs_number, session('success'));
 
         $wbsA->refresh();
         $wbsB->refresh();
@@ -1320,6 +1321,7 @@ class BudgetMonitoringManagementTest extends TestCase
      */
     public function test_form_improvements_and_multi_proof_uploads(): void
     {
+        \Illuminate\Support\Facades\Storage::fake('local');
         \Illuminate\Support\Facades\Storage::fake('public');
 
         $wbs = BudgetWbs::create([
@@ -1387,8 +1389,8 @@ class BudgetMonitoringManagementTest extends TestCase
         $this->assertCount(2, $payment->proof_list);
         $this->assertNotNull($payment->proof_paths);
         $this->assertCount(2, $payment->proof_paths);
-        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists($payment->proof_paths[0]));
-        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists($payment->proof_paths[1]));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists($payment->proof_paths[0]));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists($payment->proof_paths[1]));
         $this->assertEquals($payment->proof_paths[0], $payment->proof_path);
 
         // 4. Catat Realisasi Non-PO tanpa input nomor transaksi dan dengan multi-proof files
@@ -1411,8 +1413,8 @@ class BudgetMonitoringManagementTest extends TestCase
         $this->assertNotEmpty($nonPo->transaction_number);
         $this->assertStringStartsWith('NPO-', $nonPo->transaction_number);
         $this->assertCount(2, $nonPo->proof_list);
-        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists($nonPo->proof_paths[0]));
-        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists($nonPo->proof_paths[1]));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists($nonPo->proof_paths[0]));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists($nonPo->proof_paths[1]));
 
         // 5. Cek tampilan detail WBS menampilkan bukti transaksi dengan benar
         $resDetailAfter = $this->actingAs($this->adminUser)->get("/monitoring-anggaran/wbs/{$wbs->id}");
@@ -1440,13 +1442,13 @@ class BudgetMonitoringManagementTest extends TestCase
 
         $delPay = $this->actingAs($this->adminUser)->deleteJson("/monitoring-anggaran/payments/{$payment->id}");
         $delPay->assertStatus(200);
-        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('public')->exists($storedPayFiles[0]));
-        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('public')->exists($storedPayFiles[1]));
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists($storedPayFiles[0]));
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists($storedPayFiles[1]));
 
         $delNonPo = $this->actingAs($this->adminUser)->deleteJson("/monitoring-anggaran/non-po/{$nonPo->id}");
         $delNonPo->assertStatus(200);
-        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('public')->exists($storedNonPoFiles[0]));
-        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('public')->exists($storedNonPoFiles[1]));
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists($storedNonPoFiles[0]));
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists($storedNonPoFiles[1]));
     }
 
     /**

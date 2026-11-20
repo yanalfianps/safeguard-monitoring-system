@@ -69,30 +69,69 @@ class EventController extends Controller
     protected function applyFilters(Builder $query, Request $request): Builder
     {
         [$startDate, $endDate] = $this->parseDateRange($request);
+        $hasRange = Event::hasDateRangeColumns();
 
         if ($startDate && $endDate) {
-            $query->whereBetween('event_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]);
+            $startStr = $startDate->format('Y-m-d');
+            $endStr = $endDate->format('Y-m-d');
+            if ($hasRange) {
+                $query->where(function ($q) use ($startStr, $endStr) {
+                    $q->whereBetween('event_date', [$startStr, $endStr])
+                      ->orWhere(function ($sq) use ($startStr, $endStr) {
+                          $sq->whereNotNull('start_date')
+                             ->where('start_date', '<=', $endStr)
+                             ->where('end_date', '>=', $startStr);
+                      });
+                });
+            } else {
+                $query->whereBetween('event_date', [$startStr, $endStr]);
+            }
         } elseif ($startDate) {
-            $query->whereDate('event_date', '>=', $startDate->format('Y-m-d'));
+            $startStr = $startDate->format('Y-m-d');
+            if ($hasRange) {
+                $query->where(function ($q) use ($startStr) {
+                    $q->whereDate('event_date', '>=', $startStr)
+                      ->orWhere(function ($sq) use ($startStr) {
+                          $sq->whereNotNull('end_date')->whereDate('end_date', '>=', $startStr);
+                      });
+                });
+            } else {
+                $query->whereDate('event_date', '>=', $startStr);
+            }
         } elseif ($endDate) {
-            $query->whereDate('event_date', '<=', $endDate->format('Y-m-d'));
+            $endStr = $endDate->format('Y-m-d');
+            if ($hasRange) {
+                $query->where(function ($q) use ($endStr) {
+                    $q->whereDate('event_date', '<=', $endStr)
+                      ->orWhere(function ($sq) use ($endStr) {
+                          $sq->whereNotNull('start_date')->whereDate('start_date', '<=', $endStr);
+                      });
+                });
+            } else {
+                $query->whereDate('event_date', '<=', $endStr);
+            }
         }
 
         if ($request->filled('status') && !in_array(strtolower($request->input('status')), ['all', 'semua', ''])) {
             $query->where('status', $request->input('status'));
         }
 
-        // Dukungan filter multiple checklist Kategori / Fungsi Safeguard (misal dari modal Export PDF)
+        // Dukungan filter multiple checklist Kategori / Fungsi Safeguard
         if ($request->has('safeguard_functions') && is_array($request->input('safeguard_functions'))) {
             $selectedFunctions = array_values(array_filter($request->input('safeguard_functions'), fn($v) => !empty($v) && !in_array(strtolower((string) $v), ['all', 'semua'])));
             if (!empty($selectedFunctions)) {
-                $query->whereIn('safeguard_function', $selectedFunctions);
+                $query->where(function ($q) use ($selectedFunctions) {
+                    foreach ($selectedFunctions as $sf) {
+                        $q->orWhere('safeguard_function', 'like', "%{$sf}%");
+                    }
+                });
             }
         } elseif ($request->filled('safeguard_function') && !in_array(strtolower((string) $request->input('safeguard_function')), ['all', 'semua', 'semua fungsi safeguard', ''])) {
-            $query->where('safeguard_function', $request->input('safeguard_function'));
+            $sf = $request->input('safeguard_function');
+            $query->where('safeguard_function', 'like', "%{$sf}%");
         }
 
-        // Dukungan filter multiple checklist Perusahaan / Instansi (misal dari modal Export PDF)
+        // Dukungan filter Perusahaan / Instansi (single / checklist)
         if ($request->has('companies') && is_array($request->input('companies'))) {
             $selectedCompanies = array_values(array_filter($request->input('companies'), fn($v) => !empty($v) && !in_array(strtolower((string) $v), ['all', 'semua'])));
             if (!empty($selectedCompanies)) {
@@ -281,9 +320,17 @@ class EventController extends Controller
         $event = Event::with(['documents', 'activityLogs'])->findOrFail($id);
 
         if (request()->wantsJson() || request()->ajax()) {
+            $eventArr = $event->toArray();
+            $eventArr['safeguard_functions'] = $event->safeguard_functions_list;
+            $eventArr['safeguard_badges'] = $event->safeguard_badges_data;
+            $eventArr['formatted_date_range'] = $event->formatted_date_range;
+
             return response()->json([
                 'success' => true,
-                'event' => $event,
+                'event' => $eventArr,
+                'safeguard_functions' => $event->safeguard_functions_list,
+                'safeguard_badges' => $event->safeguard_badges_data,
+                'formatted_date_range' => $event->formatted_date_range,
                 'documents' => $event->documents->map(function ($doc) {
                     return [
                         'id' => $doc->id,
@@ -380,18 +427,22 @@ class EventController extends Controller
         DB::beginTransaction();
         try {
             $safeguardFunction = $validated['safeguard_function'] ?? 'Health & Safety';
+            $startDate = $validated['start_date'] ?? $validated['event_date'];
+            $endDate = $validated['end_date'] ?? $startDate;
+            $company = $validated['company'];
+
             $requestedStatus = $request->input('status');
             $status = ($requestedStatus === Event::STATUS_DIBATALKAN)
                 ? Event::STATUS_DIBATALKAN
-                : (!empty($requestedStatus) ? $requestedStatus : Event::determineAutoStatus($validated['event_date']));
+                : (!empty($requestedStatus) ? $requestedStatus : Event::determineAutoStatus($startDate, $endDate));
 
-            $event = Event::create([
+            $eventData = [
                 'title' => $validated['title'],
                 'safeguard_function' => $safeguardFunction,
-                'company' => $validated['company'],
+                'company' => $company,
                 'category' => $validated['category'] ?? $safeguardFunction ?? 'Kegiatan',
-                'unit' => $validated['unit'] ?? $validated['company'] ?? 'PMU',
-                'event_date' => $validated['event_date'],
+                'unit' => $validated['unit'] ?? $company ?? 'PMU',
+                'event_date' => $startDate,
                 'start_time' => $validated['start_time'] ?? null,
                 'end_time' => $validated['end_time'] ?? null,
                 'location' => $validated['location'] ?? 'Area Operasi Dieng',
@@ -401,7 +452,13 @@ class EventController extends Controller
                 'description' => $validated['description'] ?? null,
                 'created_by' => $userName,
                 'updated_by' => $userName,
-            ]);
+            ];
+            if (Event::hasDateRangeColumns()) {
+                $eventData['start_date'] = $startDate;
+                $eventData['end_date'] = $endDate;
+            }
+
+            $event = Event::create($eventData);
 
             // Simpan berkas dokumentasi
             if ($request->hasFile('documentation_files')) {
@@ -484,18 +541,22 @@ class EventController extends Controller
         DB::beginTransaction();
         try {
             $safeguardFunction = $validated['safeguard_function'] ?? $event->safeguard_function ?? 'Health & Safety';
+            $startDate = $validated['start_date'] ?? $validated['event_date'] ?? $event->start_date ?: $event->event_date;
+            $endDate = $validated['end_date'] ?? $startDate;
+            $company = $validated['company'] ?? $event->company;
+
             $requestedStatus = $request->input('status');
             $status = ($requestedStatus === Event::STATUS_DIBATALKAN)
                 ? Event::STATUS_DIBATALKAN
-                : (!empty($requestedStatus) ? $requestedStatus : Event::determineAutoStatus($validated['event_date'], $event->status));
+                : (!empty($requestedStatus) ? $requestedStatus : Event::determineAutoStatus($startDate, $endDate, $event->status));
 
-            $event->update([
+            $updateData = [
                 'title' => $validated['title'],
                 'safeguard_function' => $safeguardFunction,
-                'company' => $validated['company'],
+                'company' => $company,
                 'category' => $validated['category'] ?? $event->category ?? $safeguardFunction ?? 'Kegiatan',
-                'unit' => $validated['unit'] ?? $event->unit ?? $validated['company'] ?? 'PMU',
-                'event_date' => $validated['event_date'],
+                'unit' => $validated['unit'] ?? $event->unit ?? $company ?? 'PMU',
+                'event_date' => $startDate,
                 'start_time' => $validated['start_time'] ?? $event->start_time,
                 'end_time' => $validated['end_time'] ?? $event->end_time,
                 'location' => $validated['location'] ?? $event->location ?? 'Area Operasi Dieng',
@@ -504,7 +565,13 @@ class EventController extends Controller
                 'status' => $status,
                 'description' => $validated['description'] ?? $event->description,
                 'updated_by' => $userName,
-            ]);
+            ];
+            if (Event::hasDateRangeColumns()) {
+                $updateData['start_date'] = $startDate;
+                $updateData['end_date'] = $endDate;
+            }
+
+            $event->update($updateData);
 
             if ($request->hasFile('documentation_files')) {
                 foreach ($request->file('documentation_files') as $file) {

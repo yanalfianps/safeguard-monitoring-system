@@ -610,6 +610,21 @@
             grid-template-columns: minmax(0, 1fr) !important;
         }
     }
+
+    /* Custom Multi-Select for Safeguard Functions */
+    .custom-multi-select .multi-select-display {
+        border-color: #cbd5e1;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .custom-multi-select .multi-select-display:focus,
+    .custom-multi-select .multi-select-display[aria-expanded="true"] {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.15);
+        outline: none;
+    }
+    .safeguard-opt-row:hover {
+        background-color: #f8fafc;
+    }
 </style>
 @endpush
 
@@ -828,9 +843,9 @@
             <thead>
                 <tr>
                     <th style="width: 50px; text-align: center;">No.</th>
-                    <th style="width: 140px;">Fungsi</th>
+                    <th style="width: 155px;">Fungsi</th>
                     <th>Judul Kegiatan</th>
-                    <th style="width: 120px; text-align: center;">Tanggal</th>
+                    <th style="width: 150px; text-align: center;">Tanggal</th>
                     <th style="width: 185px;">Perusahaan/Instansi</th>
                     <th style="width: 120px; text-align: center;">Status</th>
                     <th style="width: 145px; text-align: center;">Aksi</th>
@@ -846,8 +861,16 @@
                     @endphp
                     <tr>
                         <td style="text-align: center; color: #64748b;">{{ $events->firstItem() + $index }}</td>
-                        <td class="text-slate-800 text-gray-900 fw-medium safeguard-text">
-                            {{ $safeguard }}
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                @forelse($event->safeguard_badges_data as $b)
+                                    <span class="badge" style="background: {{ $b['bg'] }}; color: {{ $b['color'] }}; border: 1px solid {{ $b['border'] }}; font-size: 10px; font-weight: 500;">
+                                        {{ $b['name'] }}
+                                    </span>
+                                @empty
+                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">-</span>
+                                @endforelse
+                            </div>
                         </td>
                         <td class="event-title-cell">
                             <div class="fw-bold text-dark fs-6">{{ $event->title }}</div>
@@ -858,7 +881,7 @@
                             @endif
                         </td>
                         <td style="text-align: center;">
-                            <div class="fw-semibold text-dark">{{ $event->event_date ? $event->event_date->format('d/m/Y') : '-' }}</div>
+                            <div class="fw-semibold text-dark" style="font-size: 11.5px; white-space: nowrap;">{{ $event->formatted_date_range }}</div>
                         </td>
                         <td>
                             <span class="company-pill">
@@ -936,25 +959,67 @@
             </div>
             <div class="modal-body p-4">
                     <div class="row g-3">
-                        <!-- Baris 1: Judul Kegiatan & Fungsi Safeguard -->
+                        <!-- Baris 1: Judul Kegiatan & Fungsi Safeguard (Multiple Select) -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Judul Kegiatan <span class="text-danger">*</span></label>
                             <input type="text" name="title" class="form-control form-control-sm" placeholder="Contoh: Audit Keselamatan Kerja EBTKE" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Fungsi Safeguard <span class="text-danger">*</span></label>
-                            <select name="safeguard_function" id="tambahSafeguardFunction" class="form-select form-select-sm" required>
-                                <option value="Health & Safety" selected>Health &amp; Safety</option>
-                                <option value="Security">Security</option>
-                                <option value="Environment">Environment</option>
-                                <option value="Social">Social</option>
-                            </select>
+                            <div class="dropdown custom-multi-select w-100" id="safeguardTambahContainer">
+                                <div class="multi-select-display form-control form-control-sm d-flex align-items-center justify-content-between"
+                                     id="safeguardTambahDisplay"
+                                     data-bs-toggle="dropdown"
+                                     data-bs-auto-close="outside"
+                                     aria-expanded="false"
+                                     role="button"
+                                     tabindex="0"
+                                     style="min-height: 31px; height: auto; cursor: pointer; background: #fff;">
+                                    <div class="multi-select-tags d-flex flex-wrap gap-1 align-items-center flex-grow-1" id="safeguardTambahTags">
+                                        <span class="text-muted placeholder-text" style="font-size: 11.5px;">Pilih Fungsi Safeguard...</span>
+                                    </div>
+                                    <i class="bi bi-chevron-down text-muted ms-1 flex-shrink-0" style="font-size: 11px;"></i>
+                                </div>
+                                <div class="dropdown-menu p-2 shadow-sm w-100" id="safeguardTambahDropdown" style="max-height: 260px; overflow-y: hidden;">
+                                    <div class="mb-2">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-light text-muted border-end-0 py-0"><i class="bi bi-search" style="font-size:11px;"></i></span>
+                                            <input type="text" class="form-control form-control-sm border-start-0 py-1 search-safeguard-input" placeholder="Cari fungsi..." oninput="filterSafeguardOptions(this, 'tambah')" style="font-size: 11.5px;">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center px-1 pb-1 mb-1 border-bottom" style="font-size: 11px;">
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-primary text-decoration-none" onclick="selectAllSafeguards('tambah')" style="font-size:11px;">Pilih Semua</button>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-secondary text-decoration-none" onclick="clearAllSafeguards('tambah')" style="font-size:11px;">Hapus Pilihan</button>
+                                    </div>
+                                    <div class="safeguard-checkbox-list" id="safeguardListTambah" style="max-height: 160px; overflow-y: auto;">
+                                        @foreach(\App\Models\Event::SAFEGUARD_FUNCTIONS as $sIdx => $func)
+                                            @php
+                                                $style = \App\Models\Event::getSafeguardStyle($func);
+                                            @endphp
+                                            <div class="form-check py-1 px-2 rounded safeguard-opt-row" data-safeguard-name="{{ $func }}">
+                                                <input class="form-check-input safeguard-cb-tambah" type="checkbox" name="safeguard_functions[]" value="{{ $func }}" id="sgTambah_{{ $sIdx }}" {{ $func === 'Health & Safety' ? 'checked' : '' }} onchange="onSafeguardCheckChanged('tambah')" style="cursor: pointer;">
+                                                <label class="form-check-label w-100 d-flex align-items-center justify-content-between" for="sgTambah_{{ $sIdx }}" style="font-size: 12px; cursor: pointer;">
+                                                    <span>{{ $func }}</span>
+                                                    <span class="badge" style="background: {{ $style['bg'] }}; color: {{ $style['color'] }}; border: 1px solid {{ $style['border'] }}; font-size: 9.5px;">
+                                                        {{ $func }}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Baris 2: Tanggal Kegiatan & Perusahaan/Instansi -->
+                        <!-- Baris 2: Tanggal Kegiatan (Date Range Picker) & Perusahaan/Instansi (Single Dropdown) -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Tanggal Kegiatan <span class="text-danger">*</span></label>
-                            <input type="date" name="event_date" id="tambahEventDate" class="form-control form-control-sm" required value="{{ date('Y-m-d') }}" onchange="autoUpdateStatusByDate(this.value, 'tambahStatus')" oninput="autoUpdateStatusByDate(this.value, 'tambahStatus')">
+                            <div class="input-group input-group-sm" style="cursor: pointer;" onclick="document.getElementById('tambahEventDate').click()">
+                                <span class="input-group-text bg-light text-muted border-end-0" style="cursor: pointer;">
+                                    <i class="bi bi-calendar-range"></i>
+                                </span>
+                                <input type="text" name="event_date" id="tambahEventDate" class="form-control form-control-sm border-start-0" placeholder="Pilih rentang tanggal (DD/MM/YYYY - DD/MM/YYYY)" required readonly style="background-color: #fff; cursor: pointer;">
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -1025,25 +1090,67 @@
             </div>
             <div class="modal-body p-4">
                     <div class="row g-3">
-                        <!-- Baris 1: Judul Kegiatan & Fungsi Safeguard -->
+                        <!-- Baris 1: Judul Kegiatan & Fungsi Safeguard (Multiple Select) -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Judul Kegiatan <span class="text-danger">*</span></label>
                             <input type="text" name="title" id="editTitle" class="form-control form-control-sm" placeholder="Contoh: Audit Keselamatan Kerja EBTKE" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Fungsi Safeguard <span class="text-danger">*</span></label>
-                            <select name="safeguard_function" id="editSafeguardFunction" class="form-select form-select-sm" required>
-                                <option value="Health & Safety">Health &amp; Safety</option>
-                                <option value="Security">Security</option>
-                                <option value="Environment">Environment</option>
-                                <option value="Social">Social</option>
-                            </select>
+                            <div class="dropdown custom-multi-select w-100" id="safeguardEditContainer">
+                                <div class="multi-select-display form-control form-control-sm d-flex align-items-center justify-content-between"
+                                     id="safeguardEditDisplay"
+                                     data-bs-toggle="dropdown"
+                                     data-bs-auto-close="outside"
+                                     aria-expanded="false"
+                                     role="button"
+                                     tabindex="0"
+                                     style="min-height: 31px; height: auto; cursor: pointer; background: #fff;">
+                                    <div class="multi-select-tags d-flex flex-wrap gap-1 align-items-center flex-grow-1" id="safeguardEditTags">
+                                        <span class="text-muted placeholder-text" style="font-size: 11.5px;">Pilih Fungsi Safeguard...</span>
+                                    </div>
+                                    <i class="bi bi-chevron-down text-muted ms-1 flex-shrink-0" style="font-size: 11px;"></i>
+                                </div>
+                                <div class="dropdown-menu p-2 shadow-sm w-100" id="safeguardEditDropdown" style="max-height: 260px; overflow-y: hidden;">
+                                    <div class="mb-2">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-light text-muted border-end-0 py-0"><i class="bi bi-search" style="font-size:11px;"></i></span>
+                                            <input type="text" class="form-control form-control-sm border-start-0 py-1 search-safeguard-input" placeholder="Cari fungsi..." oninput="filterSafeguardOptions(this, 'edit')" style="font-size: 11.5px;">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center px-1 pb-1 mb-1 border-bottom" style="font-size: 11px;">
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-primary text-decoration-none" onclick="selectAllSafeguards('edit')" style="font-size:11px;">Pilih Semua</button>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-secondary text-decoration-none" onclick="clearAllSafeguards('edit')" style="font-size:11px;">Hapus Pilihan</button>
+                                    </div>
+                                    <div class="safeguard-checkbox-list" id="safeguardListEdit" style="max-height: 160px; overflow-y: auto;">
+                                        @foreach(\App\Models\Event::SAFEGUARD_FUNCTIONS as $sIdx => $func)
+                                            @php
+                                                $style = \App\Models\Event::getSafeguardStyle($func);
+                                            @endphp
+                                            <div class="form-check py-1 px-2 rounded safeguard-opt-row" data-safeguard-name="{{ $func }}">
+                                                <input class="form-check-input safeguard-cb-edit" type="checkbox" name="safeguard_functions[]" value="{{ $func }}" id="sgEdit_{{ $sIdx }}" onchange="onSafeguardCheckChanged('edit')" style="cursor: pointer;">
+                                                <label class="form-check-label w-100 d-flex align-items-center justify-content-between" for="sgEdit_{{ $sIdx }}" style="font-size: 12px; cursor: pointer;">
+                                                    <span>{{ $func }}</span>
+                                                    <span class="badge" style="background: {{ $style['bg'] }}; color: {{ $style['color'] }}; border: 1px solid {{ $style['border'] }}; font-size: 9.5px;">
+                                                        {{ $func }}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Baris 2: Tanggal Kegiatan & Perusahaan/Instansi -->
+                        <!-- Baris 2: Tanggal Kegiatan (Date Range Picker) & Perusahaan/Instansi (Single Dropdown) -->
                         <div class="col-md-6">
                             <label class="form-label fw-semibold" style="font-size:12px">Tanggal Kegiatan <span class="text-danger">*</span></label>
-                            <input type="date" name="event_date" id="editEventDate" class="form-control form-control-sm" required onchange="autoUpdateStatusByDate(this.value, 'editStatus')" oninput="autoUpdateStatusByDate(this.value, 'editStatus')">
+                            <div class="input-group input-group-sm" style="cursor: pointer;" onclick="document.getElementById('editEventDate').click()">
+                                <span class="input-group-text bg-light text-muted border-end-0" style="cursor: pointer;">
+                                    <i class="bi bi-calendar-range"></i>
+                                </span>
+                                <input type="text" name="event_date" id="editEventDate" class="form-control form-control-sm border-start-0" placeholder="Pilih rentang tanggal (DD/MM/YYYY - DD/MM/YYYY)" required readonly style="background-color: #fff; cursor: pointer;">
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -1548,57 +1655,200 @@
         }
     });
 
-    // Otomatisasi status kegiatan berdasarkan tanggal aktual (Direncanakan / Berlangsung / Selesai)
-    function getLocalTodayString() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+    // Safeguard Multi-Select Styling Map & Helpers
+    const safeguardStyleMap = {
+        'Health & Safety': { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+        'Security': { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+        'Environment': { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+        'Social': { bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff' },
+    };
+
+    function onSafeguardCheckChanged(type) {
+        const selector = type === 'tambah' ? '.safeguard-cb-tambah' : '.safeguard-cb-edit';
+        const tagsContainerId = type === 'tambah' ? 'safeguardTambahTags' : 'safeguardEditTags';
+        const tagsContainer = document.getElementById(tagsContainerId);
+        if (!tagsContainer) return;
+
+        const checkedBoxes = Array.from(document.querySelectorAll(`${selector}:checked`));
+        if (checkedBoxes.length === 0) {
+            tagsContainer.innerHTML = `<span class="text-muted placeholder-text" style="font-size: 11.5px;">Pilih Fungsi Safeguard...</span>`;
+            return;
+        }
+
+        tagsContainer.innerHTML = '';
+        checkedBoxes.forEach(cb => {
+            const val = cb.value;
+            const style = safeguardStyleMap[val] || { bg: '#f1f5f9', color: '#334155', border: '#cbd5e1' };
+            const badge = document.createElement('span');
+            badge.className = 'badge d-inline-flex align-items-center gap-1';
+            badge.style.background = style.bg;
+            badge.style.color = style.color;
+            badge.style.border = `1px solid ${style.border}`;
+            badge.style.fontSize = '10px';
+            badge.style.fontWeight = '500';
+            badge.innerHTML = `
+                <span>${escapeHtml(val)}</span>
+                <i class="bi bi-x ms-1 cursor-pointer" onclick="event.stopPropagation(); uncheckSafeguard('${type}', '${escapeHtml(val)}')" style="cursor: pointer; font-size: 12px; line-height: 1;" title="Hapus"></i>
+            `;
+            tagsContainer.appendChild(badge);
+        });
     }
 
-    function autoUpdateStatusByDate(dateVal, statusSelectId) {
+    function uncheckSafeguard(type, val) {
+        const selector = type === 'tambah' ? '.safeguard-cb-tambah' : '.safeguard-cb-edit';
+        document.querySelectorAll(selector).forEach(cb => {
+            if (cb.value === val) {
+                cb.checked = false;
+            }
+        });
+        onSafeguardCheckChanged(type);
+    }
+
+    function selectAllSafeguards(type) {
+        const selector = type === 'tambah' ? '.safeguard-cb-tambah' : '.safeguard-cb-edit';
+        document.querySelectorAll(selector).forEach(cb => {
+            cb.checked = true;
+        });
+        onSafeguardCheckChanged(type);
+    }
+
+    function clearAllSafeguards(type) {
+        const selector = type === 'tambah' ? '.safeguard-cb-tambah' : '.safeguard-cb-edit';
+        document.querySelectorAll(selector).forEach(cb => {
+            cb.checked = false;
+        });
+        onSafeguardCheckChanged(type);
+    }
+
+    function filterSafeguardOptions(input, type) {
+        const q = (input.value || '').toLowerCase().trim();
+        const listId = type === 'tambah' ? 'safeguardListTambah' : 'safeguardListEdit';
+        const rows = document.querySelectorAll(`#${listId} .safeguard-opt-row`);
+        rows.forEach(r => {
+            const name = (r.getAttribute('data-safeguard-name') || '').toLowerCase();
+            if (name.includes(q)) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    }
+
+    // Otomatisasi status kegiatan berdasarkan rentang tanggal aktual (Direncanakan / Berlangsung / Selesai)
+    function autoUpdateStatusByRange(startDate, endDate, statusSelectId) {
         const statusSel = document.getElementById(statusSelectId);
-        if (!statusSel || !dateVal) return;
+        if (!statusSel || !startDate) return;
 
         // Jangan timpa jika status sudah diatur secara manual menjadi Dibatalkan
         if (statusSel.value === 'Dibatalkan') return;
 
-        const today = getLocalTodayString();
-        if (dateVal > today) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        const e = new Date(endDate || startDate);
+        e.setHours(0, 0, 0, 0);
+
+        if (s > today) {
             statusSel.value = 'Direncanakan';
-        } else if (dateVal === today) {
-            statusSel.value = 'Berlangsung';
-        } else {
+        } else if (e < today) {
             statusSel.value = 'Selesai';
+        } else {
+            statusSel.value = 'Berlangsung';
         }
     }
 
+    let fpTambah = null;
+    let fpEdit = null;
+
     document.addEventListener('DOMContentLoaded', function() {
-        [
-            { dateId: 'tambahEventDate', statusId: 'tambahStatus' },
-            { dateId: 'editEventDate', statusId: 'editStatus' }
-        ].forEach(({ dateId, statusId }) => {
-            const dateInput = document.getElementById(dateId);
-            if (dateInput) {
-                ['change', 'input'].forEach(evtName => {
-                    dateInput.addEventListener(evtName, function() {
-                        autoUpdateStatusByDate(this.value, statusId);
-                    });
+        if (typeof flatpickr !== 'undefined') {
+            const fpBaseConfig = {
+                mode: 'range',
+                dateFormat: 'd/m/Y',
+                rangeSeparator: ' - ',
+                allowInput: false, // Wajib pilih via kalender interaktif, bukan ketik manual
+                clickOpens: true,
+                locale: {
+                    rangeSeparator: ' - ',
+                    firstDayOfWeek: 1
+                }
+            };
+
+            const elTambah = document.getElementById('tambahEventDate');
+            if (elTambah) {
+                fpTambah = flatpickr(elTambah, {
+                    ...fpBaseConfig,
+                    onChange: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 2) {
+                            autoUpdateStatusByRange(selectedDates[0], selectedDates[1], 'tambahStatus');
+                        }
+                    },
+                    onClose: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 1) {
+                            // Jika hanya memilih 1 tanggal pada kalender, jadikan rentang 1 hari (start = end)
+                            instance.setDate([selectedDates[0], selectedDates[0]], true);
+                            autoUpdateStatusByRange(selectedDates[0], selectedDates[0], 'tambahStatus');
+                        }
+                    }
+                });
+            }
+
+            const elEdit = document.getElementById('editEventDate');
+            if (elEdit) {
+                fpEdit = flatpickr(elEdit, {
+                    ...fpBaseConfig,
+                    onChange: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 2) {
+                            autoUpdateStatusByRange(selectedDates[0], selectedDates[1], 'editStatus');
+                        }
+                    },
+                    onClose: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 1) {
+                            instance.setDate([selectedDates[0], selectedDates[0]], true);
+                            autoUpdateStatusByRange(selectedDates[0], selectedDates[0], 'editStatus');
+                        }
+                    }
+                });
+            }
+        }
+
+        // Inisialisasi tampilan tag badge Fungsi Safeguard awal untuk form tambah
+        onSafeguardCheckChanged('tambah');
+
+        // Validasi form client-side: Minimal 1 safeguard dan tanggal kegiatan terisi
+        ['formTambahEvent', 'formEditEvent'].forEach(formId => {
+            const form = document.getElementById(formId);
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const isTambah = formId === 'formTambahEvent';
+                    const selector = isTambah ? '.safeguard-cb-tambah:checked' : '.safeguard-cb-edit:checked';
+                    const checkedCount = document.querySelectorAll(selector).length;
+                    if (checkedCount === 0) {
+                        e.preventDefault();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Fungsi Safeguard Belum Dipilih',
+                            text: 'Silakan pilih minimal satu Fungsi Safeguard untuk kegiatan ini.'
+                        });
+                        return false;
+                    }
+
+                    const dateInputId = isTambah ? 'tambahEventDate' : 'editEventDate';
+                    const dateVal = (document.getElementById(dateInputId)?.value || '').trim();
+                    if (!dateVal) {
+                        e.preventDefault();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Tanggal Belum Dipilih',
+                            text: 'Silakan tentukan Tanggal Kegiatan melalui kalender pemilih tanggal.'
+                        });
+                        return false;
+                    }
                 });
             }
         });
-
-        const modalTambahEl = document.getElementById('modalTambahEvent');
-        if (modalTambahEl) {
-            modalTambahEl.addEventListener('show.bs.modal', function() {
-                const tambahDateEl = document.getElementById('tambahEventDate');
-                const tambahStatusEl = document.getElementById('tambahStatus');
-                if (tambahDateEl && tambahStatusEl && tambahStatusEl.value !== 'Dibatalkan') {
-                    autoUpdateStatusByDate(tambahDateEl.value, 'tambahStatus');
-                }
-            });
-        }
     });
 
     // Otomatis Submit saat Filter Berubah
@@ -1848,15 +2098,27 @@
                 const e = res.event;
                 document.getElementById('detailJudul').textContent = e.title;
                 if (document.getElementById('detailSafeguard')) {
-                    document.getElementById('detailSafeguard').textContent = e.safeguard_function || 'Health & Safety';
+                    if (e.safeguard_badges && e.safeguard_badges.length > 0) {
+                        document.getElementById('detailSafeguard').innerHTML = `
+                            <div class="d-flex flex-wrap gap-1">
+                                ${e.safeguard_badges.map(b => `<span class="badge" style="background:${b.bg}; color:${b.color}; border:1px solid ${b.border}; font-size:11px; font-weight:500;">${escapeHtml(b.name)}</span>`).join('')}
+                            </div>
+                        `;
+                    } else {
+                        document.getElementById('detailSafeguard').textContent = e.safeguard_function || '-';
+                    }
                 }
                 document.getElementById('detailCompany').textContent = e.company || '-';
                 if (document.getElementById('detailPic')) document.getElementById('detailPic').textContent = e.pic || '-';
 
-                const dateFormatted = e.event_date ? new Date(e.event_date).toLocaleDateString('id-ID', {
-                    day: 'numeric', month: 'long', year: 'numeric'
-                }) : '-';
-                document.getElementById('detailTanggal').textContent = dateFormatted;
+                let dateRangeDisplay = e.formatted_date_range;
+                if (!dateRangeDisplay && e.event_date) {
+                    const d = new Date(e.event_date);
+                    const pad = n => String(n).padStart(2, '0');
+                    const f = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+                    dateRangeDisplay = `${f} - ${f}`;
+                }
+                document.getElementById('detailTanggal').textContent = dateRangeDisplay || '-';
 
                 const badge = document.getElementById('detailStatusBadge');
                 badge.textContent = e.status;
@@ -2187,11 +2449,27 @@
                 form.action = `/events/${id}`;
 
                 document.getElementById('editTitle').value = e.title || '';
-                document.getElementById('editEventDate').value = e.event_date ? e.event_date.split('T')[0] : '';
 
-                if (document.getElementById('editSafeguardFunction')) {
-                    document.getElementById('editSafeguardFunction').value = e.safeguard_function || 'Health & Safety';
+                // Tanggal Kegiatan (Date Range)
+                if (fpEdit) {
+                    if (e.start_date && e.end_date) {
+                        fpEdit.setDate([e.start_date, e.end_date], true);
+                    } else if (e.event_date) {
+                        fpEdit.setDate([e.event_date, e.event_date], true);
+                    } else if (e.formatted_date_range) {
+                        const parts = e.formatted_date_range.split(' - ');
+                        fpEdit.setDate(parts, true);
+                    }
+                } else {
+                    document.getElementById('editEventDate').value = e.formatted_date_range || (e.event_date ? e.event_date.split('T')[0] : '');
                 }
+
+                // Fungsi Safeguard (Multiple Select)
+                const selectedSg = e.safeguard_functions || (e.safeguard_function ? e.safeguard_function.split(',').map(s => s.trim()) : []);
+                document.querySelectorAll('.safeguard-cb-edit').forEach(cb => {
+                    cb.checked = selectedSg.includes(cb.value);
+                });
+                onSafeguardCheckChanged('edit');
 
                 const selComp = document.getElementById('selectCompanyEdit');
                 if (selComp && e.company) {

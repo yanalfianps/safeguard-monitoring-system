@@ -44,4 +44,3 @@ class EventCompany extends Model
         }
     }
 }
-

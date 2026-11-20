@@ -178,7 +178,7 @@
                     @endif
                 </td>
                 <td class="text-center">
-                    <div>{{ $item->event_date ? $item->event_date->format('d/m/Y') : '-' }}</div>
+                    <div>{{ $item->formatted_date_range }}</div>
                 </td>
                 <td>{{ $item->company ?: $item->unit ?: '-' }}</td>
                 <td class="text-center">

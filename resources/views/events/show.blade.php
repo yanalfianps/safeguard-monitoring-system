@@ -21,9 +21,15 @@
                 </div>
                 <div class="col-md-3">
                     <p class="mb-1 text-muted">Fungsi Safeguard</p>
-                    <span class="badge-cat" style="background: {{ $event->safeguard_badge_bg }}; color: {{ $event->safeguard_badge_color }}; border: 1px solid {{ $event->safeguard_badge_border }};">
-                        {{ $event->safeguard_function ?: 'Health & Safety' }}
-                    </span>
+                    <div class="d-flex flex-wrap gap-1">
+                        @forelse($event->safeguard_badges_data as $b)
+                            <span class="badge" style="background: {{ $b['bg'] }}; color: {{ $b['color'] }}; border: 1px solid {{ $b['border'] }}; font-size: 11px; font-weight: 500;">
+                                {{ $b['name'] }}
+                            </span>
+                        @empty
+                            <span class="badge bg-secondary-subtle text-secondary">-</span>
+                        @endforelse
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <p class="mb-1 text-muted">Status</p>
@@ -43,7 +49,7 @@
                 </div>
                 <div class="col-md-4">
                     <p class="mb-1 text-muted">Tanggal Kegiatan</p>
-                    <p class="fw-semibold">{{ $event->event_date ? $event->event_date->format('d F Y') : '-' }}</p>
+                    <p class="fw-semibold">{{ $event->formatted_date_range }}</p>
                 </div>
                 <div class="col-md-4">
                     <p class="mb-1 text-muted">Penanggung Jawab (PIC)</p>

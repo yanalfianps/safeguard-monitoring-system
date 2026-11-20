@@ -481,5 +481,72 @@ class EventManagementTest extends TestCase
         $downloadAllRes = $this->actingAs($admin)->get("/events/{$event->id}/download-doc");
         $downloadAllRes->assertStatus(200);
     }
+
+    public function test_date_range_picker_single_company_and_multiple_safeguard_functions(): void
+    {
+        $admin = $this->getAdmin();
+
+        // 1. Uji Tambah Event dengan Date Range Picker dan Multiple Safeguard
+        $response = $this->actingAs($admin)->post('/events', [
+            'title' => 'Audit Terpadu Lingkungan & K3 2026',
+            'event_date' => '18/11/2026 - 20/11/2026',
+            'safeguard_functions' => ['Health & Safety', 'Environment'],
+            'company' => 'EBTKE',
+            'status' => 'Direncanakan',
+            'description' => 'Audit gabungan keselamatan kerja dan lingkungan.',
+        ]);
+
+        $response->assertRedirect(route('events.index'));
+
+        $event = Event::where('title', 'Audit Terpadu Lingkungan & K3 2026')->firstOrFail();
+        $this->assertEquals('Health & Safety, Environment', $event->safeguard_function);
+        $this->assertEquals('EBTKE', $event->company);
+        $this->assertEquals(['Health & Safety', 'Environment'], $event->safeguard_functions_list);
+        $this->assertCount(2, $event->safeguard_badges_data);
+
+        // 2. Uji API Detail Event (GET /events/{id})
+        $detailRes = $this->actingAs($admin)->getJson("/events/{$event->id}");
+        $detailRes->assertStatus(200);
+        $detailRes->assertJsonPath('event.company', 'EBTKE');
+        $detailRes->assertJsonPath('event.safeguard_functions', ['Health & Safety', 'Environment']);
+        $this->assertNotEmpty($detailRes->json('event.formatted_date_range'));
+
+        // 3. Uji Edit Event dengan mengubah rentang tanggal dan fungsi safeguard
+        $updateRes = $this->actingAs($admin)->put("/events/{$event->id}", [
+            'title' => 'Audit Terpadu Lingkungan, K3 & Social 2026 (Updated)',
+            'event_date' => '25/11/2026 - 27/11/2026',
+            'safeguard_functions' => ['Health & Safety', 'Environment', 'Social'],
+            'company' => 'PT Geo Dipa Energi (Persero)',
+            'status' => 'Direncanakan',
+            'description' => 'Penambahan fungsi social pada audit.',
+        ]);
+
+        $updateRes->assertRedirect(route('events.index'));
+        $event->refresh();
+        $this->assertEquals('Audit Terpadu Lingkungan, K3 & Social 2026 (Updated)', $event->title);
+        $this->assertEquals('Health & Safety, Environment, Social', $event->safeguard_function);
+        $this->assertEquals('PT Geo Dipa Energi (Persero)', $event->company);
+        $this->assertEquals(['Health & Safety', 'Environment', 'Social'], $event->safeguard_functions_list);
+
+        // 4. Uji Validasi: Tanggal akhir lebih awal daripada tanggal awal harus gagal
+        $invalidDateRes = $this->actingAs($admin)->post('/events', [
+            'title' => 'Kegiatan Tanggal Tidak Valid',
+            'event_date' => '25/11/2026 - 20/11/2026', // end < start
+            'safeguard_functions' => ['Health & Safety'],
+            'company' => 'EBTKE',
+            'status' => 'Direncanakan',
+        ]);
+        $invalidDateRes->assertSessionHasErrors(['end_date']);
+
+        // 5. Uji Validasi: Minimal 1 Fungsi Safeguard wajib dipilih
+        $emptySafeguardRes = $this->actingAs($admin)->post('/events', [
+            'title' => 'Kegiatan Tanpa Safeguard',
+            'event_date' => '18/11/2026 - 20/11/2026',
+            'safeguard_functions' => [],
+            'company' => 'EBTKE',
+            'status' => 'Direncanakan',
+        ]);
+        $emptySafeguardRes->assertSessionHasErrors(['safeguard_functions']);
+    }
 }
 
