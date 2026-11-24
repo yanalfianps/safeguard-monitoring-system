@@ -286,7 +286,7 @@ class DashboardController extends Controller
         // 2. Query Pekerjaan Hari Ini (Daily Work) - menggunakan single source of truth & timezone Asia/Jakarta
         $today_wib = Carbon::now('Asia/Jakarta')->locale('id');
         $today_works = DailyWork::dailyWorkToday($today_wib->toDateString())
-            ->orderedForDailyWork()
+            ->orderedForToday($today_wib->toDateString())
             ->take(5)
             ->get();
 

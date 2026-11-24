@@ -252,15 +252,45 @@ class DailyWork extends Model
 
     /**
      * Single source of truth untuk daftar "Pekerjaan Hari Ini" pada Dashboard dan modul Daily Work.
-     * Menggunakan tanggal mulai (start_date) strictly pada zona waktu Asia/Jakarta serta mengecualikan status Selesai.
+     * Menggabungkan dua kelompok tanpa duplikasi:
+     * - Kelompok A (Dimulai Hari Ini): start_date = today
+     * - Kelompok B (Masih Berlangsung): start_date < today dan end_date >= today (inklusif)
+     * Menggunakan zona waktu Asia/Jakarta dan mengecualikan status Selesai.
      */
     public function scopeDailyWorkToday(Builder $query, ?string $date = null): Builder
     {
         $targetDate = $date ?: \Carbon\Carbon::now('Asia/Jakarta')->toDateString();
 
         return $query
-            ->whereDate('start_date', $targetDate)
+            ->where(function ($q) use ($targetDate) {
+                // Kelompok A — Pekerjaan yang Dimulai Hari Ini
+                $q->whereDate('start_date', '=', $targetDate)
+                  // Kelompok B — Pekerjaan yang Masih Berlangsung
+                  ->orWhere(function ($sq) use ($targetDate) {
+                      $sq->whereDate('start_date', '<', $targetDate)
+                         ->whereDate('end_date', '>=', $targetDate);
+                  });
+            })
             ->where('status', '!=', self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Urutan prioritas khusus untuk bagian "Pekerjaan Hari Ini":
+     * 1. Kelompok A (start_date = today) selalu berada di urutan paling atas.
+     * 2. Kelompok B (start_date < today dan end_date >= today) ditampilkan setelahnya.
+     * 3. Pada kelompok yang masih berlangsung, urutkan berdasarkan start_date secara descending (terbaru dahulu).
+     * 4. Di dalam kelompok/tanggal yang sama, urutkan berdasarkan unit ASC, name ASC, id DESC.
+     */
+    public function scopeOrderedForToday(Builder $query, ?string $date = null): Builder
+    {
+        $today = $date ?: \Carbon\Carbon::now('Asia/Jakarta')->toDateString();
+
+        return $query
+            ->orderByRaw("CASE WHEN DATE(start_date) = ? THEN 0 ELSE 1 END ASC", [$today])
+            ->orderBy('start_date', 'desc')
+            ->orderBy('unit', 'asc')
+            ->orderBy('name', 'asc')
+            ->orderBy('id', 'desc');
     }
 
     /**

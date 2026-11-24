@@ -313,10 +313,7 @@ class DailyWorkController extends Controller
         $dateMode = $isTodayMode ? 'today' : 'all';
         $selectedDate = $request->input('date');
 
-        $query = $this->buildFilteredQuery($request, $today);
-        $works = $query->orderedForDailyWork()->get();
-
-        // Statistik mengikuti tanggal acuan terpilih dan filter aktif
+        // Statistik dan prioritas urutan mengikuti tanggal acuan terpilih dan filter aktif
         $singleFilterDate = null;
         if ($isTodayMode) {
             $reqStart = $request->filled('start_date') ? trim((string) $request->input('start_date')) : null;
@@ -327,6 +324,13 @@ class DailyWorkController extends Controller
                 $singleFilterDate = $selectedDate;
             }
         }
+
+        $query = $this->buildFilteredQuery($request, $today);
+        $targetDateForOrder = $isTodayMode ? ($singleFilterDate ?: $today) : null;
+        $works = $isTodayMode
+            ? $query->orderedForToday($targetDateForOrder)->get()
+            : $query->orderedForDailyWork()->get();
+
         $stats = $this->getStats($isTodayMode ? ($singleFilterDate ?: $today) : null, $request);
 
         // Grafik Pekerjaan per Perusahaan menggunakan kumpulan data yang sesuai dengan mode/tabel saat ini
@@ -848,7 +852,6 @@ class DailyWorkController extends Controller
         $selectedDate = $request->input('date');
 
         $query = $this->buildFilteredQuery($request, $today);
-        $records = $query->orderedForDailyWork()->get();
 
         $startDate = $request->filled('start_date') ? trim((string) $request->input('start_date')) : null;
         $endDate = $request->filled('end_date') ? trim((string) $request->input('end_date')) : null;
@@ -864,6 +867,7 @@ class DailyWorkController extends Controller
 
         if ($dateMode === 'today') {
             $targetDate = $startDate ?: ($selectedDate ?: $today);
+            $records = $query->orderedForToday($targetDate)->get();
             $formattedDate = Carbon::parse($targetDate)->locale('id')->isoFormat('D MMMM Y');
             $reportTitle = ($targetDate === $today && (!$endDate || $endDate === $today))
                 ? 'LAPORAN DAILY WORK HARI INI'
@@ -880,6 +884,7 @@ class DailyWorkController extends Controller
             }
             $fileName = 'Laporan_Daily_Work_Harian_' . str_replace('-', '', $targetDate) . '_' . date('His') . '.pdf';
         } else {
+            $records = $query->orderedForDailyWork()->get();
             $reportTitle = 'LAPORAN RIWAYAT DAILY WORK';
             if ($startDate && $endDate) {
                 $startFmt = Carbon::parse($startDate)->locale('id')->isoFormat('D MMMM Y');
