@@ -62,31 +62,51 @@ class GasMonitoring extends Model
     protected static function booted(): void
     {
         static::saving(function (GasMonitoring $item) {
-            $item->co_level = $item->co_level !== null ? (float) $item->co_level : null;
-            $item->o2_level = $item->o2_level !== null ? (float) $item->o2_level : null;
-            $item->h2s_level = $item->h2s_level !== null ? (float) $item->h2s_level : null;
-            $item->lel_level = $item->lel_level !== null ? (float) $item->lel_level : null;
-            $item->pressure = $item->pressure !== null ? (float) $item->pressure : null;
+            $item->co_level = ($item->co_level !== null && $item->co_level !== '') ? (float) $item->co_level : null;
+            $item->o2_level = ($item->o2_level !== null && $item->o2_level !== '') ? (float) $item->o2_level : null;
+            $item->h2s_level = ($item->h2s_level !== null && $item->h2s_level !== '') ? (float) $item->h2s_level : null;
+            $item->lel_level = ($item->lel_level !== null && $item->lel_level !== '') ? (float) $item->lel_level : null;
+            $item->pressure = ($item->pressure !== null && $item->pressure !== '') ? (float) $item->pressure : null;
 
-            // Status calculations based on threshold
-            $item->co_status = ($item->co_level !== null && $item->co_level > self::NAB_CO) ? 'Tidak Sesuai' : 'Sesuai';
-            
-            if ($item->o2_level !== null) {
-                $item->o2_status = ($item->o2_level < self::NAB_O2_MIN || $item->o2_level > self::NAB_O2_MAX) ? 'Tidak Sesuai' : 'Sesuai';
+            // Status per parameter berdasarkan NAB.
+            // Parameter kosong (null) tidak dianggap 0 dan tidak otomatis aman ('Sesuai').
+            $item->co_status = ($item->co_level !== null)
+                ? (($item->co_level > self::NAB_CO) ? 'Tidak Sesuai' : 'Sesuai')
+                : '-';
+
+            $item->o2_status = ($item->o2_level !== null)
+                ? ((($item->o2_level < self::NAB_O2_MIN) || ($item->o2_level > self::NAB_O2_MAX)) ? 'Tidak Sesuai' : 'Sesuai')
+                : '-';
+
+            $item->h2s_status = ($item->h2s_level !== null)
+                ? (($item->h2s_level > self::NAB_H2S) ? 'Tidak Sesuai' : 'Sesuai')
+                : '-';
+
+            $item->lel_status = ($item->lel_level !== null)
+                ? (($item->lel_level > self::NAB_LEL) ? 'Tidak Sesuai' : 'Sesuai')
+                : '-';
+
+            $item->pressure_status = ($item->pressure !== null)
+                ? 'Sesuai'
+                : '-';
+
+            // Overall Status:
+            // - Jika ada parameter gas yang melebihi NAB -> 'Tidak Sesuai'
+            // - Jika ada parameter gas yang diukur dan seluruhnya aman -> 'Sesuai'
+            // - Jika tidak ada parameter gas yang diukur sama sekali -> '-'
+            $hasAnyGasMeasured = ($item->co_level !== null || $item->o2_level !== null || $item->h2s_level !== null || $item->lel_level !== null);
+            $hasAnyNonConforming = ($item->co_status === 'Tidak Sesuai')
+                || ($item->o2_status === 'Tidak Sesuai')
+                || ($item->h2s_status === 'Tidak Sesuai')
+                || ($item->lel_status === 'Tidak Sesuai');
+
+            if ($hasAnyNonConforming) {
+                $item->overall_status = 'Tidak Sesuai';
+            } elseif ($hasAnyGasMeasured) {
+                $item->overall_status = 'Sesuai';
             } else {
-                $item->o2_status = 'Sesuai';
+                $item->overall_status = '-';
             }
-
-            $item->h2s_status = ($item->h2s_level !== null && $item->h2s_level > self::NAB_H2S) ? 'Tidak Sesuai' : 'Sesuai';
-            $item->lel_status = ($item->lel_level !== null && $item->lel_level > self::NAB_LEL) ? 'Tidak Sesuai' : 'Sesuai';
-            $item->pressure_status = 'Sesuai';
-
-            $isAllConforming = ($item->co_status === 'Sesuai')
-                && ($item->o2_status === 'Sesuai')
-                && ($item->h2s_status === 'Sesuai')
-                && ($item->lel_status === 'Sesuai');
-
-            $item->overall_status = $isAllConforming ? 'Sesuai' : 'Tidak Sesuai';
         });
     }
 

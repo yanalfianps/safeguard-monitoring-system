@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class WellPad extends Model
 {
@@ -28,6 +29,19 @@ class WellPad extends Model
         'sort_order',
     ];
 
+    protected static bool $isResequencing = false;
+
+    protected static function booted(): void
+    {
+        static::saved(function () {
+            static::resequenceSortOrders();
+        });
+
+        static::deleted(function () {
+            static::resequenceSortOrders();
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -45,13 +59,63 @@ class WellPad extends Model
     {
         return $query->where('is_active', true)
             ->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc');
+            ->orderBy('name', 'asc');
     }
 
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc');
+            ->orderBy('name', 'asc');
+    }
+
+    /**
+     * Urutkan koleksi Well Pad secara natural ascending (A-Z) berdasarkan nama.
+     * Mendukung pemilahan angka dan huruf secara konsisten (contoh: Well 07A sebelum Well 07B, Well Pad 7 sebelum Well Pad 28).
+     */
+    public static function sortNaturally(iterable $items): Collection
+    {
+        $collection = $items instanceof Collection ? $items : collect($items);
+
+        return $collection->sort(function ($a, $b) {
+            $nameA = is_string($a) ? $a : ($a->name ?? '');
+            $nameB = is_string($b) ? $b : ($b->name ?? '');
+
+            $cmp = strnatcasecmp($nameA, $nameB);
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            $idA = is_object($a) ? ($a->id ?? 0) : 0;
+            $idB = is_object($b) ? ($b->id ?? 0) : 0;
+
+            return $idA <=> $idB;
+        })->values();
+    }
+
+    /**
+     * Hitung ulang nomor urut sort_order pada database mengikuti urutan natural nama Well Pad.
+     */
+    public static function resequenceSortOrders(): void
+    {
+        if (static::$isResequencing) {
+            return;
+        }
+
+        static::$isResequencing = true;
+        try {
+            $all = static::all();
+            $sorted = static::sortNaturally($all);
+
+            foreach ($sorted as $index => $pad) {
+                $expectedSort = $index + 1;
+                if ($pad->sort_order !== $expectedSort) {
+                    static::where('id', $pad->id)->update(['sort_order' => $expectedSort]);
+                    $pad->sort_order = $expectedSort;
+                }
+            }
+        } finally {
+            static::$isResequencing = false;
+        }
     }
 
     public static function ensureDefaultsSeeded(): void
@@ -70,6 +134,8 @@ class WellPad extends Model
                 ]
             );
         }
+
+        static::resequenceSortOrders();
     }
 }
 

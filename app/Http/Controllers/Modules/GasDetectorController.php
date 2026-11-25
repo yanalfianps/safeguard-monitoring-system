@@ -80,6 +80,7 @@ class GasDetectorController extends Controller
         if ($activeWellPads->isEmpty()) {
             $activeWellPads = WellPad::ordered()->get();
         }
+        $activeWellPads = WellPad::sortNaturally($activeWellPads);
 
         // Resolve period filter (supports 6 period modes + legacy month/year params)
         $periodResolved = $this->resolvePeriodFilter($request);
@@ -976,11 +977,11 @@ class GasDetectorController extends Controller
                 'measurement_date' => $validated['measurement_date'],
                 'well_pad_id' => $wpId,
                 'well_pad' => $validated['well_pad'],
-                'co_level' => $validated['co_level'] ?? 0,
-                'o2_level' => $validated['o2_level'] ?? 20.9,
-                'h2s_level' => $validated['h2s_level'] ?? 0,
-                'lel_level' => $validated['lel_level'] ?? 0,
-                'pressure' => $validated['pressure'] ?? 0,
+                'co_level' => ($validated['co_level'] !== null && $validated['co_level'] !== '') ? (float) $validated['co_level'] : null,
+                'o2_level' => ($validated['o2_level'] !== null && $validated['o2_level'] !== '') ? (float) $validated['o2_level'] : null,
+                'h2s_level' => ($validated['h2s_level'] !== null && $validated['h2s_level'] !== '') ? (float) $validated['h2s_level'] : null,
+                'lel_level' => ($validated['lel_level'] !== null && $validated['lel_level'] !== '') ? (float) $validated['lel_level'] : null,
+                'pressure' => ($validated['pressure'] !== null && $validated['pressure'] !== '') ? (float) $validated['pressure'] : null,
                 'notes' => $validated['notes'] ?? null,
                 'recorded_by' => $userName,
             ]);
@@ -1066,11 +1067,11 @@ class GasDetectorController extends Controller
                 'measurement_date' => $validated['measurement_date'],
                 'well_pad_id' => $wpId,
                 'well_pad' => $validated['well_pad'],
-                'co_level' => $validated['co_level'] !== null ? $validated['co_level'] : $locked->co_level,
-                'o2_level' => array_key_exists('o2_level', $validated) ? $validated['o2_level'] : $locked->o2_level,
-                'h2s_level' => $validated['h2s_level'] !== null ? $validated['h2s_level'] : $locked->h2s_level,
-                'lel_level' => array_key_exists('lel_level', $validated) ? $validated['lel_level'] : $locked->lel_level,
-                'pressure' => $validated['pressure'] !== null ? $validated['pressure'] : $locked->pressure,
+                'co_level' => array_key_exists('co_level', $validated) ? (($validated['co_level'] !== null && $validated['co_level'] !== '') ? (float) $validated['co_level'] : null) : $locked->co_level,
+                'o2_level' => array_key_exists('o2_level', $validated) ? (($validated['o2_level'] !== null && $validated['o2_level'] !== '') ? (float) $validated['o2_level'] : null) : $locked->o2_level,
+                'h2s_level' => array_key_exists('h2s_level', $validated) ? (($validated['h2s_level'] !== null && $validated['h2s_level'] !== '') ? (float) $validated['h2s_level'] : null) : $locked->h2s_level,
+                'lel_level' => array_key_exists('lel_level', $validated) ? (($validated['lel_level'] !== null && $validated['lel_level'] !== '') ? (float) $validated['lel_level'] : null) : $locked->lel_level,
+                'pressure' => array_key_exists('pressure', $validated) ? (($validated['pressure'] !== null && $validated['pressure'] !== '') ? (float) $validated['pressure'] : null) : $locked->pressure,
                 'notes' => $encodedNotes,
             ]);
 
@@ -1147,8 +1148,8 @@ class GasDetectorController extends Controller
      */
     public function getWellPadsData(): JsonResponse
     {
-        $wellPads = WellPad::ordered()->get();
-        $data = $wellPads->map(function (WellPad $wp) {
+        $wellPads = WellPad::sortNaturally(WellPad::ordered()->get());
+        $data = $wellPads->values()->map(function (WellPad $wp) {
             $query = GasMonitoring::where(function ($q) use ($wp) {
                 $q->where('well_pad_id', $wp->id)
                   ->orWhere('well_pad', $wp->name);
@@ -1189,13 +1190,15 @@ class GasDetectorController extends Controller
             'code.unique' => 'Kode Well Pad sudah digunakan.',
         ]);
 
-        $maxSort = (int) WellPad::max('sort_order') + 1;
         $wellPad = WellPad::create([
             'name' => trim($validated['name']),
             'code' => strtoupper(trim($validated['code'])),
             'is_active' => $validated['is_active'] ?? true,
-            'sort_order' => $maxSort,
+            'sort_order' => 9999,
         ]);
+
+        WellPad::resequenceSortOrders();
+        $wellPad->refresh();
 
         ActivityLog::create([
             'user_id' => Auth::id(),
@@ -1252,6 +1255,9 @@ class GasDetectorController extends Controller
                     ]);
             }
 
+            WellPad::resequenceSortOrders();
+            $wellPad->refresh();
+
             ActivityLog::create([
                 'user_id' => Auth::id(),
                 'user_name' => Auth::user()?->name ?? 'Administrator Dieng',
@@ -1291,6 +1297,7 @@ class GasDetectorController extends Controller
 
         if ($dataCount > 0) {
             $wellPad->update(['is_active' => false]);
+            WellPad::resequenceSortOrders();
 
             ActivityLog::create([
                 'user_id' => Auth::id(),
@@ -1313,6 +1320,7 @@ class GasDetectorController extends Controller
 
         $name = $wellPad->name;
         $wellPad->delete();
+        WellPad::resequenceSortOrders();
 
         ActivityLog::create([
             'user_id' => Auth::id(),

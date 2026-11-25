@@ -1218,6 +1218,7 @@
                         $lelExceeded = ($row->lel_level !== null && $row->lel_level > 5.0);
                         $pressExceeded = false;
                         $isRowExceeded = $coExceeded || $o2Exceeded || $h2sExceeded || $lelExceeded;
+                        $hasAnyMeasured = ($row->co_level !== null || $row->o2_level !== null || $row->h2s_level !== null || $row->lel_level !== null);
                     @endphp
                     <tr style="{{ $isRowExceeded ? 'background-color: #fef2f2;' : '' }}">
                         <td class="text-center text-muted fw-semibold">
@@ -1251,9 +1252,13 @@
                         </td>
                         <!-- Status -->
                         <td class="text-center">
-                            <span class="{{ !$isRowExceeded ? 'badge-sesuai' : 'badge-tidaksesuai' }}">
-                                {{ !$isRowExceeded ? 'Sesuai' : 'Tidak Sesuai' }}
-                            </span>
+                            @if($isRowExceeded)
+                                <span class="badge-tidaksesuai">Tidak Sesuai</span>
+                            @elseif($hasAnyMeasured)
+                                <span class="badge-sesuai">Sesuai</span>
+                            @else
+                                <span class="badge bg-light text-muted border">-</span>
+                            @endif
                         </td>
                         <!-- Aksi -->
                         <td class="text-center">
@@ -1506,8 +1511,23 @@
                     </table>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
-                    <span id="wpTableCounter">Menampilkan 0 dari 0 Well Pad</span>
+                <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top gap-2 small text-muted">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="wpTableCounter">Menampilkan 0 dari 0 Well Pad</span>
+                        <div class="d-inline-flex align-items-center gap-1 ms-2">
+                            <span>Per halaman:</span>
+                            <select id="wpPerPageSelect" class="form-select form-select-sm py-0 px-2" style="width: auto; height: 26px; font-size: 11px;" onchange="changeWpPerPage(this.value)">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </div>
+                    </div>
+                    <nav aria-label="Well Pad Table Navigation" id="wpPaginationNav">
+                        <ul class="pagination pagination-sm mb-0" id="wpPaginationList">
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
@@ -2184,6 +2204,21 @@ async function submitBatchGasForm(e) {
     }
 }
 
+let wpFilteredList = [];
+let wpCurrentPage = 1;
+let wpPerPage = 10;
+
+function changeWpPerPage(val) {
+    wpPerPage = val === 'all' ? 'all' : parseInt(val, 10);
+    wpCurrentPage = 1;
+    renderWellPadsTable();
+}
+
+function goToWpPage(page) {
+    wpCurrentPage = page;
+    renderWellPadsTable();
+}
+
 async function openWellPadModal() {
     await loadWellPads();
     const modalEl = document.getElementById('modalWellPadManagement');
@@ -2197,32 +2232,63 @@ async function loadWellPads() {
         });
         const json = await res.json();
         if (json.success) {
-            wellPadsCache = json.data;
-            renderWellPadsTable(wellPadsCache);
+            wellPadsCache = (json.data || []).sort((a, b) => 
+                (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+            );
+            filterWellPadList();
         }
     } catch (err) {
         console.error('Failed to load well pads:', err);
     }
 }
 
-function renderWellPadsTable(pads) {
+function filterWellPadList() {
+    const term = (document.getElementById('searchWellPadInput')?.value || '').toLowerCase().trim();
+    if (!term) {
+        wpFilteredList = [...wellPadsCache];
+    } else {
+        wpFilteredList = wellPadsCache.filter(wp => 
+            (wp.name && wp.name.toLowerCase().includes(term)) || 
+            (wp.code && wp.code.toLowerCase().includes(term))
+        );
+    }
+    wpCurrentPage = 1;
+    renderWellPadsTable();
+}
+
+function renderWellPadsTable() {
     const tbody = document.getElementById('tbodyWellPads');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
-    if (pads.length === 0) {
+    const total = wpFilteredList.length;
+    if (total === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Tidak ada Well Pad yang cocok.</td></tr>';
-        document.getElementById('wpTableCounter').textContent = 'Menampilkan 0 dari 0 Well Pad';
+        const counterEl = document.getElementById('wpTableCounter');
+        if (counterEl) counterEl.textContent = 'Menampilkan 0 dari 0 Well Pad';
+        const nav = document.getElementById('wpPaginationList');
+        if (nav) nav.innerHTML = '';
         return;
     }
 
-    pads.forEach((wp, idx) => {
+    const perPageNum = wpPerPage === 'all' ? total : wpPerPage;
+    const totalPages = Math.max(1, Math.ceil(total / perPageNum));
+    if (wpCurrentPage > totalPages) wpCurrentPage = totalPages;
+    if (wpCurrentPage < 1) wpCurrentPage = 1;
+
+    const startIndex = wpPerPage === 'all' ? 0 : (wpCurrentPage - 1) * perPageNum;
+    const endIndex = Math.min(startIndex + perPageNum, total);
+    const displayedPads = wpFilteredList.slice(startIndex, endIndex);
+
+    displayedPads.forEach((wp, idx) => {
+        const globalIndex = startIndex + idx + 1;
         const statusBadge = wp.is_active 
             ? '<span class="badge-sesuai">Aktif</span>'
             : '<span class="badge bg-light text-muted border">Nonaktif</span>';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="text-center text-muted fw-semibold">${idx + 1}</td>
+            <td class="text-center text-muted fw-semibold">${globalIndex}</td>
             <td class="fw-bold text-dark">${wp.name}</td>
             <td class="text-center font-monospace">${wp.code}</td>
             <td class="text-center">${statusBadge}</td>
@@ -2233,7 +2299,7 @@ function renderWellPadsTable(pads) {
                     <button type="button" class="btn-tbl-action btn-tbl-edit" onclick="editWellPadItem(${wp.id})" title="Edit Well Pad">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button type="button" class="btn-tbl-action btn-tbl-del" onclick="deleteWellPadItem(${wp.id}, '${wp.name}', ${wp.data_count})" title="Hapus / Nonaktifkan">
+                    <button type="button" class="btn-tbl-action btn-tbl-del" onclick="deleteWellPadItem(${wp.id}, '${wp.name.replace(/'/g, "\\'")}', ${wp.data_count})" title="Hapus / Nonaktifkan">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -2242,15 +2308,52 @@ function renderWellPadsTable(pads) {
         tbody.appendChild(tr);
     });
 
-    document.getElementById('wpTableCounter').textContent = `Menampilkan ${pads.length} dari ${wellPadsCache.length} Well Pad`;
+    const counterEl = document.getElementById('wpTableCounter');
+    if (counterEl) {
+        counterEl.textContent = `Menampilkan ${startIndex + 1} - ${endIndex} dari ${total} Well Pad`;
+    }
+
+    renderWpPagination(totalPages);
 }
 
-function filterWellPadList() {
-    const term = document.getElementById('searchWellPadInput').value.toLowerCase();
-    const filtered = wellPadsCache.filter(wp => 
-        wp.name.toLowerCase().includes(term) || wp.code.toLowerCase().includes(term)
-    );
-    renderWellPadsTable(filtered);
+function renderWpPagination(totalPages) {
+    const nav = document.getElementById('wpPaginationList');
+    if (!nav) return;
+    nav.innerHTML = '';
+
+    if (totalPages <= 1 || wpPerPage === 'all') {
+        return;
+    }
+
+    // Tombol Sebelumnya (Previous)
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${wpCurrentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<button type="button" class="page-link" onclick="goToWpPage(${wpCurrentPage - 1})" aria-label="Previous">&laquo;</button>`;
+    nav.appendChild(prevLi);
+
+    // Nomor Halaman
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages > 7 && Math.abs(p - wpCurrentPage) > 2 && p !== 1 && p !== totalPages) {
+            if (p === 2 || p === totalPages - 1) {
+                const ellipsis = document.createElement('li');
+                ellipsis.className = 'page-item disabled';
+                ellipsis.innerHTML = '<span class="page-link py-1 px-2 border-0">...</span>';
+                nav.appendChild(ellipsis);
+            }
+            continue;
+        }
+
+        const li = document.createElement('li');
+        li.className = `page-item ${p === wpCurrentPage ? 'active' : ''}`;
+        li.innerHTML = `<button type="button" class="page-link" onclick="goToWpPage(${p})">${p}</button>`;
+        nav.appendChild(li);
+    }
+
+    // Tombol Selanjutnya (Next)
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${wpCurrentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<button type="button" class="page-link" onclick="goToWpPage(${wpCurrentPage + 1})" aria-label="Next">&raquo;</button>`;
+    nav.appendChild(nextLi);
 }
 
 function openAddWellPadForm() {
@@ -2387,7 +2490,13 @@ async function viewMeasurementDetail(id) {
             document.getElementById('dtlH2s').textContent = m.h2s_level !== null ? `${m.h2s_level} ppm (${m.h2s_status})` : '-';
             document.getElementById('dtlLel').textContent = m.lel_level !== null ? `${m.lel_level} % (${m.lel_status})` : '-';
             document.getElementById('dtlPress').textContent = m.pressure !== null ? `${m.pressure} Psi` : '-';
-            document.getElementById('dtlStatus').innerHTML = m.overall_status === 'Sesuai' ? '<span class="badge-sesuai">Sesuai</span>' : '<span class="badge-tidaksesuai">Tidak Sesuai</span>';
+            let statusBadge = '<span class="badge bg-light text-muted border">-</span>';
+            if (m.overall_status === 'Sesuai') {
+                statusBadge = '<span class="badge-sesuai">Sesuai</span>';
+            } else if (m.overall_status === 'Tidak Sesuai') {
+                statusBadge = '<span class="badge-tidaksesuai">Tidak Sesuai</span>';
+            }
+            document.getElementById('dtlStatus').innerHTML = statusBadge;
             document.getElementById('dtlOfficer').textContent = m.recorded_by || '-';
 
             const notesItems = [
@@ -2434,11 +2543,11 @@ async function editSingleMeasurement(id) {
             document.getElementById('editMeasurementId').value = m.id;
             document.getElementById('editDate').value = m.measurement_date;
             document.getElementById('editWellPad').value = m.well_pad;
-            document.getElementById('editCo').value = m.co_level;
-            document.getElementById('editO2').value = m.o2_level;
-            document.getElementById('editH2s').value = m.h2s_level;
-            document.getElementById('editLel').value = m.lel_level;
-            document.getElementById('editPressure').value = m.pressure;
+            document.getElementById('editCo').value = m.co_level !== null ? m.co_level : '';
+            document.getElementById('editO2').value = m.o2_level !== null ? m.o2_level : '';
+            document.getElementById('editH2s').value = m.h2s_level !== null ? m.h2s_level : '';
+            document.getElementById('editLel').value = m.lel_level !== null ? m.lel_level : '';
+            document.getElementById('editPressure').value = m.pressure !== null ? m.pressure : '';
             document.getElementById('editCoNotes').value = m.co_notes || '';
             document.getElementById('editO2Notes').value = m.o2_notes || '';
             document.getElementById('editH2sNotes').value = m.h2s_notes || '';
@@ -2456,14 +2565,20 @@ async function editSingleMeasurement(id) {
 async function submitSingleEdit(e) {
     e.preventDefault();
     const id = document.getElementById('editMeasurementId').value;
+    const coVal = document.getElementById('editCo').value;
+    const o2Val = document.getElementById('editO2').value;
+    const h2sVal = document.getElementById('editH2s').value;
+    const lelVal = document.getElementById('editLel').value;
+    const pressVal = document.getElementById('editPressure').value;
+
     const payload = {
         measurement_date: document.getElementById('editDate').value,
         well_pad: document.getElementById('editWellPad').value,
-        co_level: document.getElementById('editCo').value || null,
-        o2_level: document.getElementById('editO2').value || null,
-        h2s_level: document.getElementById('editH2s').value || null,
-        lel_level: document.getElementById('editLel').value || null,
-        pressure: document.getElementById('editPressure').value || null,
+        co_level: coVal !== '' ? coVal : null,
+        o2_level: o2Val !== '' ? o2Val : null,
+        h2s_level: h2sVal !== '' ? h2sVal : null,
+        lel_level: lelVal !== '' ? lelVal : null,
+        pressure: pressVal !== '' ? pressVal : null,
         co_notes: document.getElementById('editCoNotes').value || null,
         o2_notes: document.getElementById('editO2Notes').value || null,
         h2s_notes: document.getElementById('editH2sNotes').value || null,

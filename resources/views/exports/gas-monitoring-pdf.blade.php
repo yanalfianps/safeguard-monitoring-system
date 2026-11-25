@@ -29,9 +29,13 @@
                 <td class="text-right">{{ $item->lel_level !== null ? rtrim(rtrim(number_format($item->lel_level, 1, '.', ','), '0'), '.') : '-' }}</td>
                 <td class="text-right">{{ $item->pressure !== null ? rtrim(rtrim(number_format($item->pressure, 1, '.', ','), '0'), '.') : '-' }}</td>
                 <td class="text-center">
-                    <span class="badge {{ ($item->overall_status ?? 'Sesuai') === 'Sesuai' ? 'badge-success' : 'badge-danger' }}">
-                        {{ $item->overall_status ?? 'Sesuai' }}
-                    </span>
+                    @if(($item->overall_status ?? '') === 'Tidak Sesuai')
+                        <span class="badge badge-danger">Tidak Sesuai</span>
+                    @elseif(($item->overall_status ?? '') === 'Sesuai')
+                        <span class="badge badge-success">Sesuai</span>
+                    @else
+                        <span class="badge badge-secondary">-</span>
+                    @endif
                 </td>
                 <td>{{ $item->recorded_by ?? '-' }}</td>
                 <td>{{ $item->formatted_notes ?? ($item->notes ?? '-') }}</td>
