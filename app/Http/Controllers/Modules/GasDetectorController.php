@@ -146,6 +146,7 @@ class GasDetectorController extends Controller
         $searchHistory = trim((string) $request->input('search_history', ''));
         $historyTableRecords = $this->buildHistoryTableQuery($historyFilter, $searchHistory)
             ->paginate(15, ['*'], 'history_page')
+            ->withPath(route('gas-detector.index', [], false))
             ->appends([
                 'section' => 'semua_riwayat',
                 'history_period_type' => $historyFilter['period_type'],
@@ -402,7 +403,7 @@ class GasDetectorController extends Controller
         $searchHistory = trim((string) $request->input('search_history', ''));
         $historyTableRecords = $this->buildHistoryTableQuery($historyFilter, $searchHistory)
             ->paginate(15, ['*'], 'history_page')
-            ->withPath(route('gas-detector.index'))
+            ->withPath(route('gas-detector.index', [], false))
             ->appends([
                 'section' => 'semua_riwayat',
                 'history_period_type' => $historyFilter['period_type'],
@@ -435,9 +436,17 @@ class GasDetectorController extends Controller
      */
     protected function buildHistoryTableQuery(array $historyFilter, string $searchHistory = ''): Builder
     {
+        $wellPad = $historyFilter['well_pad'];
+        $wellPadId = $historyFilter['well_pad_id'] ?? WellPad::where('name', $wellPad)->value('id');
+
         $query = GasMonitoring::query()
             ->with('wellPad')
-            ->where('well_pad', $historyFilter['well_pad'])
+            ->where(function (Builder $q) use ($wellPad, $wellPadId) {
+                $q->where('well_pad', $wellPad);
+                if ($wellPadId) {
+                    $q->orWhere('well_pad_id', $wellPadId);
+                }
+            })
             ->whereDate('measurement_date', '>=', $historyFilter['start_date'])
             ->whereDate('measurement_date', '<=', $historyFilter['end_date']);
 
@@ -459,30 +468,34 @@ class GasDetectorController extends Controller
      */
     protected function resolveHistoryChartFilter(Request $request, Collection $activeWellPads, string $todayStr): array
     {
-        $todayObj = Carbon::parse($todayStr)->locale('id');
-        $defaultPad = $activeWellPads->first()?->name ?? (self::WELL_PADS[0] ?? 'Well Pad 7');
+        $latestDateStr = GasMonitoring::resolveLatestMeasurementDate($todayStr) ?? $todayStr;
+        $defaultDateObj = Carbon::parse($latestDateStr)->locale('id');
+        $defaultPadObj = $activeWellPads->first();
+        $defaultPad = $defaultPadObj?->name ?? (self::WELL_PADS[0] ?? 'Well Pad 7');
 
         $wellPad = trim((string) $request->input('history_well_pad', $request->input('well_pad', '')));
         if ($wellPad === '' || $wellPad === 'all') {
             $wellPad = $defaultPad;
         }
+        $matchedPad = $activeWellPads->firstWhere('name', $wellPad);
+        $wellPadId = $matchedPad?->id ?? WellPad::where('name', $wellPad)->value('id');
 
         $periodType = (string) $request->input('history_period_type', $request->input('period_type', 'monthly'));
         if (!in_array($periodType, ['monthly', 'yearly', 'custom'], true)) {
             $periodType = 'monthly';
         }
 
-        $month = (int) $request->input('history_month', $request->input('month', $todayObj->month));
+        $month = (int) $request->input('history_month', $request->input('month', $defaultDateObj->month));
         if ($month < 1 || $month > 12) {
-            $month = $todayObj->month;
+            $month = $defaultDateObj->month;
         }
 
         $rawYear = $periodType === 'yearly'
-            ? $request->input('history_year', $request->input('history_year_only', $request->input('year', $todayObj->year)))
-            : $request->input('history_year', $request->input('year', $todayObj->year));
+            ? $request->input('history_year', $request->input('history_year_only', $request->input('year', $defaultDateObj->year)))
+            : $request->input('history_year', $request->input('year', $defaultDateObj->year));
         $year = (int) $rawYear;
         if ($year < 2000 || $year > 2099) {
-            $year = $todayObj->year;
+            $year = $defaultDateObj->year;
         }
 
         if ($periodType === 'yearly') {
@@ -490,8 +503,8 @@ class GasDetectorController extends Controller
             $end = (clone $start)->endOfYear();
             $label = 'Tahun ' . $year;
         } elseif ($periodType === 'custom') {
-            $rawStart = $request->input('history_start_date', $request->input('start_date', Carbon::parse($todayStr)->startOfMonth()->format('Y-m-d')));
-            $rawEnd = $request->input('history_end_date', $request->input('end_date', $todayStr));
+            $rawStart = $request->input('history_start_date', $request->input('start_date', Carbon::parse($latestDateStr)->startOfMonth()->format('Y-m-d')));
+            $rawEnd = $request->input('history_end_date', $request->input('end_date', $latestDateStr));
             $start = Carbon::parse($rawStart)->locale('id');
             $end = Carbon::parse($rawEnd)->locale('id');
             if ($end->lt($start)) {
@@ -512,6 +525,7 @@ class GasDetectorController extends Controller
             'start_date' => $start->format('Y-m-d'),
             'end_date' => $end->format('Y-m-d'),
             'well_pad' => $wellPad,
+            'well_pad_id' => $wellPadId,
             'formatted_label' => $label,
         ];
     }
@@ -526,12 +540,19 @@ class GasDetectorController extends Controller
     {
         $periodType = $filter['period_type'];
         $wellPad = $filter['well_pad'];
+        $wellPadId = $filter['well_pad_id'] ?? WellPad::where('name', $wellPad)->value('id');
         $startDate = $filter['start_date'];
         $endDate = $filter['end_date'];
 
         $records = GasMonitoring::query()
-            ->where('well_pad', $wellPad)
-            ->whereBetween('measurement_date', [$startDate, $endDate])
+            ->where(function (Builder $q) use ($wellPad, $wellPadId) {
+                $q->where('well_pad', $wellPad);
+                if ($wellPadId) {
+                    $q->orWhere('well_pad_id', $wellPadId);
+                }
+            })
+            ->whereDate('measurement_date', '>=', $startDate)
+            ->whereDate('measurement_date', '<=', $endDate)
             ->orderBy('measurement_date', 'asc')
             ->orderBy('id', 'asc')
             ->get();

@@ -355,4 +355,47 @@ class GasMonitoringEnhancementTest extends TestCase
         ]));
         $resInvalid->assertStatus(422);
     }
+
+    public function test_semua_riwayat_displays_past_month_data_by_default_and_matches_by_well_pad_id(): void
+    {
+        GasMonitoring::query()->delete();
+
+        $wp7 = WellPad::where('name', 'Well Pad 7')->firstOrFail();
+        $pastDate = Carbon::now('Asia/Jakarta')->subMonths(2)->format('Y-m-15');
+
+        // Data hanya ada di 2 bulan lalu (bulan berjalan kosong) dan memiliki well_pad_id yang cocok
+        GasMonitoring::create([
+            'measurement_date' => $pastDate,
+            'well_pad_id' => $wp7->id,
+            'well_pad' => 'Well Pad 7',
+            'co_level' => 9.5,
+            'o2_level' => 20.6,
+            'notes' => 'DATA_BULAN_LALU',
+        ]);
+
+        // Buka halaman utama tanpa parameter filter -> default bulan Semua Riwayat harus mengikuti tanggal terbaru yang tersedia
+        $res = $this->actingAs($this->admin)->get(route('gas-detector.index'));
+        $res->assertStatus(200);
+        $res->assertViewHas('historyTableRecords', fn ($pag) => $pag->total() === 1);
+        $res->assertSee(Carbon::parse($pastDate)->format('d/m/Y'), false);
+
+        // Juga pastikan jika well_pad string berbeda (misal sebelum rename) tetapi well_pad_id sama, tetap tampil
+        GasMonitoring::create([
+            'measurement_date' => $pastDate,
+            'well_pad_id' => $wp7->id,
+            'well_pad' => 'Well 07 Legacy',
+            'co_level' => 11.0,
+            'o2_level' => 20.4,
+            'notes' => 'LEGACY_ID_MATCH',
+        ]);
+
+        $resChart = $this->actingAs($this->admin)->getJson(route('gas-detector.history-chart', [
+            'history_period_type' => 'monthly',
+            'history_month' => (int) Carbon::parse($pastDate)->month,
+            'history_year' => (int) Carbon::parse($pastDate)->year,
+            'history_well_pad' => 'Well Pad 7',
+        ]));
+        $resChart->assertStatus(200);
+        $this->assertEquals(2, $resChart->json('tableTotal'));
+    }
 }

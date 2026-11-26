@@ -1660,10 +1660,10 @@ let historyChartRawData = @json($historyChartData);
 let historyStatsRawData = @json($historyStatisticsData);
 let historyPeriodLabel = "{{ $historyPeriodLabel }}";
 let historyWellPadName = "{{ $historyFilter['well_pad'] ?? '' }}";
-const defaultHistoryMonth = "{{ (int) date('n') }}";
-const defaultHistoryYear = "{{ (int) date('Y') }}";
-const defaultHistoryStartDate = "{{ date('Y-m-01') }}";
-const defaultHistoryEndDate = "{{ date('Y-m-d') }}";
+const defaultHistoryMonth = "{{ (int) ($historyFilter['month'] ?? date('n')) }}";
+const defaultHistoryYear = "{{ (int) ($historyFilter['year'] ?? date('Y')) }}";
+const defaultHistoryStartDate = "{{ $historyFilter['start_date'] ?? date('Y-m-01') }}";
+const defaultHistoryEndDate = "{{ $historyFilter['end_date'] ?? date('Y-m-d') }}";
 const defaultHistoryWellPad = "{{ $activeWellPads->first()?->name ?? '' }}";
 
 let activeSection = "{{ $activeSection ?? 'hari_ini' }}";
@@ -1784,7 +1784,7 @@ async function applyHistoryChartFilter(event) {
     }
 
     try {
-        const res = await fetch(`{{ route('gas-detector.history-chart') }}?${params.toString()}`, {
+        const res = await fetch(`{{ route('gas-detector.history-chart', [], false) }}?${params.toString()}`, {
             headers: { 'Accept': 'application/json' }
         });
         const data = await res.json();
