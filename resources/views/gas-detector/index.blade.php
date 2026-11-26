@@ -1660,11 +1660,11 @@ let historyChartRawData = @json($historyChartData);
 let historyStatsRawData = @json($historyStatisticsData);
 let historyPeriodLabel = "{{ $historyPeriodLabel }}";
 let historyWellPadName = "{{ $historyFilter['well_pad'] ?? '' }}";
-const defaultHistoryMonth = "{{ (int) ($historyFilter['month'] ?? date('n')) }}";
-const defaultHistoryYear = "{{ (int) ($historyFilter['year'] ?? date('Y')) }}";
-const defaultHistoryStartDate = "{{ $historyFilter['start_date'] ?? date('Y-m-01') }}";
-const defaultHistoryEndDate = "{{ $historyFilter['end_date'] ?? date('Y-m-d') }}";
-const defaultHistoryWellPad = "{{ $activeWellPads->first()?->name ?? '' }}";
+const defaultHistoryMonth = "{{ (int) ($defaultHistoryFilter['month'] ?? ($historyFilter['month'] ?? date('n'))) }}";
+const defaultHistoryYear = "{{ (int) ($defaultHistoryFilter['year'] ?? ($historyFilter['year'] ?? date('Y'))) }}";
+const defaultHistoryStartDate = "{{ $defaultHistoryFilter['start_date'] ?? ($historyFilter['start_date'] ?? date('Y-m-01')) }}";
+const defaultHistoryEndDate = "{{ $defaultHistoryFilter['end_date'] ?? ($historyFilter['end_date'] ?? date('Y-m-d')) }}";
+const defaultHistoryWellPad = "{{ $defaultHistoryFilter['well_pad'] ?? ($activeWellPads->first()?->name ?? '') }}";
 
 let activeSection = "{{ $activeSection ?? 'hari_ini' }}";
 let activeParamKey = 'co';
@@ -2268,7 +2268,7 @@ async function submitBatchGasForm(e) {
                 timer: 1500,
                 showConfirmButton: false
             }).then(() => {
-                window.location.href = `{{ route('gas-detector.index') }}?start_date=${body.startDate}&end_date=${body.endDate}`;
+                window.location.href = `{{ route('gas-detector.index', [], false) }}`;
             });
         } else {
             let msg = body.message || 'Gagal menyimpan data.';

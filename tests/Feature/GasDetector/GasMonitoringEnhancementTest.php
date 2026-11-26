@@ -398,4 +398,62 @@ class GasMonitoringEnhancementTest extends TestCase
         $resChart->assertStatus(200);
         $this->assertEquals(2, $resChart->json('tableTotal'));
     }
+
+    public function test_regression_march_2026_latest_data_with_november_system_date_and_stale_url_params(): void
+    {
+        GasMonitoring::query()->delete();
+
+        // Simulasikan tanggal sistem November 2026, namun data terbaru di database adalah 2026-03-31 (5 record)
+        // dan Well Pad pertama (Well Pad 7) kosong di Maret 2026 sedangkan Well Pad 9 memiliki data.
+        Carbon::setTestNow(Carbon::create(2026, 11, 26, 10, 0, 0, 'Asia/Jakarta'));
+
+        try {
+            $wp9 = WellPad::where('name', 'Well Pad 9')->firstOrFail();
+            $wp28 = WellPad::where('name', 'Well Pad 28')->firstOrFail();
+
+            for ($i = 1; $i <= 3; $i++) {
+                GasMonitoring::create([
+                    'measurement_date' => '2026-03-31',
+                    'well_pad_id' => $wp9->id,
+                    'well_pad' => 'Well Pad 9',
+                    'co_level' => 6.0 + $i,
+                    'o2_level' => 20.8,
+                ]);
+            }
+            for ($i = 1; $i <= 2; $i++) {
+                GasMonitoring::create([
+                    'measurement_date' => '2026-03-31',
+                    'well_pad_id' => $wp28->id,
+                    'well_pad' => 'Well Pad 28',
+                    'co_level' => 9.0 + $i,
+                    'o2_level' => 20.6,
+                ]);
+            }
+
+            // Buka URL persis seperti di hosting dengan parameter lama start_date & end_date November 2026
+            $res = $this->actingAs($this->admin)->get('/gas-detector?start_date=2026-11-17&end_date=2026-11-17');
+            $res->assertStatus(200);
+
+            $res->assertViewHas('historyFilter', function ($filter) {
+                return $filter['period_type'] === 'monthly'
+                    && (int) $filter['month'] === 3
+                    && (int) $filter['year'] === 2026
+                    && $filter['start_date'] === '2026-03-01'
+                    && $filter['end_date'] === '2026-03-31'
+                    && $filter['well_pad'] === 'Well Pad 9';
+            });
+
+            $res->assertViewHas('defaultHistoryFilter', function ($def) {
+                return (int) $def['month'] === 3
+                    && (int) $def['year'] === 2026
+                    && $def['well_pad'] === 'Well Pad 9';
+            });
+
+            // Tabel Semua Riwayat tidak boleh kosong (harus menampilkan 3 record Well Pad 9 di Maret 2026)
+            $res->assertViewHas('historyTableRecords', fn ($pag) => $pag->total() === 3);
+            $res->assertSee('31/03/2026', false);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 }

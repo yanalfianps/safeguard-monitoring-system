@@ -137,7 +137,8 @@ class GasDetectorController extends Controller
             ->withQueryString();
 
         // 4. SECTION SEMUA RIWAYAT (Tabel & Grafik menggunakan filter periode + Well Pad yang sama)
-        $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr);
+        $defaultHistoryFilter = $this->resolveDefaultHistoryFilter($activeWellPads, $todayStr);
+        $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr, $defaultHistoryFilter);
         $historyChartResult = $this->buildHistoryChartAndStatistics($historyFilter);
         $historyChartData = $historyChartResult['chartData'];
         $historyStatisticsData = $historyChartResult['statisticsData'];
@@ -335,6 +336,7 @@ class GasDetectorController extends Controller
             'historyStatisticsData',
             'historyPeriodLabel',
             'historyFilter',
+            'defaultHistoryFilter',
             'availableYears',
             'searchQuery',
             'searchToday',
@@ -464,38 +466,79 @@ class GasDetectorController extends Controller
     }
 
     /**
-     * Resolve filter grafik untuk section Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad).
+     * Tentukan filter default Semua Riwayat berdasarkan tanggal pengukuran terbaru yang tersedia di database.
      */
-    protected function resolveHistoryChartFilter(Request $request, Collection $activeWellPads, string $todayStr): array
+    protected function resolveDefaultHistoryFilter(Collection $activeWellPads, string $todayStr): array
     {
         $latestDateStr = GasMonitoring::resolveLatestMeasurementDate($todayStr) ?? $todayStr;
         $defaultDateObj = Carbon::parse($latestDateStr)->locale('id');
-        $defaultPadObj = $activeWellPads->first();
-        $defaultPad = $defaultPadObj?->name ?? (self::WELL_PADS[0] ?? 'Well Pad 7');
+        $monthStart = (clone $defaultDateObj)->startOfMonth()->format('Y-m-d');
+        $monthEnd = (clone $defaultDateObj)->endOfMonth()->format('Y-m-d');
 
-        $wellPad = trim((string) $request->input('history_well_pad', $request->input('well_pad', '')));
+        // Pilih Well Pad pertama (urut natural) yang memiliki data pada bulan terbaru; jika tidak ada, gunakan Well Pad pertama.
+        $defaultPadObj = $activeWellPads->first();
+        foreach ($activeWellPads as $pad) {
+            $hasData = GasMonitoring::query()
+                ->where(function (Builder $q) use ($pad) {
+                    $q->where('well_pad', $pad->name)
+                        ->orWhere('well_pad_id', $pad->id);
+                })
+                ->whereDate('measurement_date', '>=', $monthStart)
+                ->whereDate('measurement_date', '<=', $monthEnd)
+                ->exists();
+            if ($hasData) {
+                $defaultPadObj = $pad;
+                break;
+            }
+        }
+
+        $wellPad = $defaultPadObj?->name ?? (self::WELL_PADS[0] ?? 'Well Pad 7');
+        $wellPadId = $defaultPadObj?->id;
+
+        return [
+            'period_type' => 'monthly',
+            'month' => (int) $defaultDateObj->month,
+            'year' => (int) $defaultDateObj->year,
+            'start_date' => $monthStart,
+            'end_date' => $monthEnd,
+            'well_pad' => $wellPad,
+            'well_pad_id' => $wellPadId,
+            'formatted_label' => (self::MONTH_NAMES[(int) $defaultDateObj->month] ?? 'Bulan') . ' ' . $defaultDateObj->year,
+        ];
+    }
+
+    /**
+     * Resolve filter grafik untuk section Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad).
+     * Mengabaikan query parameter lama (seperti start_date/end_date tanpa history_period_type) agar default
+     * selalu mengikuti tanggal pengukuran terbaru yang tersedia di database.
+     */
+    protected function resolveHistoryChartFilter(Request $request, Collection $activeWellPads, string $todayStr, ?array $defaultFilter = null): array
+    {
+        $defaultFilter = $defaultFilter ?? $this->resolveDefaultHistoryFilter($activeWellPads, $todayStr);
+
+        $wellPad = trim((string) $request->input('history_well_pad', ''));
         if ($wellPad === '' || $wellPad === 'all') {
-            $wellPad = $defaultPad;
+            $wellPad = $defaultFilter['well_pad'];
         }
         $matchedPad = $activeWellPads->firstWhere('name', $wellPad);
         $wellPadId = $matchedPad?->id ?? WellPad::where('name', $wellPad)->value('id');
 
-        $periodType = (string) $request->input('history_period_type', $request->input('period_type', 'monthly'));
+        $periodType = (string) $request->input('history_period_type', $defaultFilter['period_type']);
         if (!in_array($periodType, ['monthly', 'yearly', 'custom'], true)) {
             $periodType = 'monthly';
         }
 
-        $month = (int) $request->input('history_month', $request->input('month', $defaultDateObj->month));
+        $month = (int) $request->input('history_month', $defaultFilter['month']);
         if ($month < 1 || $month > 12) {
-            $month = $defaultDateObj->month;
+            $month = $defaultFilter['month'];
         }
 
         $rawYear = $periodType === 'yearly'
-            ? $request->input('history_year', $request->input('history_year_only', $request->input('year', $defaultDateObj->year)))
-            : $request->input('history_year', $request->input('year', $defaultDateObj->year));
+            ? $request->input('history_year', $request->input('history_year_only', $defaultFilter['year']))
+            : $request->input('history_year', $defaultFilter['year']);
         $year = (int) $rawYear;
         if ($year < 2000 || $year > 2099) {
-            $year = $defaultDateObj->year;
+            $year = $defaultFilter['year'];
         }
 
         if ($periodType === 'yearly') {
@@ -503,8 +546,8 @@ class GasDetectorController extends Controller
             $end = (clone $start)->endOfYear();
             $label = 'Tahun ' . $year;
         } elseif ($periodType === 'custom') {
-            $rawStart = $request->input('history_start_date', $request->input('start_date', Carbon::parse($latestDateStr)->startOfMonth()->format('Y-m-d')));
-            $rawEnd = $request->input('history_end_date', $request->input('end_date', $latestDateStr));
+            $rawStart = $request->input('history_start_date', $defaultFilter['start_date']);
+            $rawEnd = $request->input('history_end_date', $defaultFilter['end_date']);
             $start = Carbon::parse($rawStart)->locale('id');
             $end = Carbon::parse($rawEnd)->locale('id');
             if ($end->lt($start)) {
