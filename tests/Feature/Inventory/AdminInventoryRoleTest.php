@@ -107,12 +107,12 @@ class AdminInventoryRoleTest extends TestCase
         // Administrative actions/tabs are hidden
         $response->assertDontSee('class="tab-group tab-group-stock"', false);
         $response->assertDontSee('<span>Catat Transaksi</span>', false);
-        $response->assertDontSee('<span>Kelola Satuan</span>', false);
+        $response->assertDontSee('<span>Kelola Master</span>', false);
         $response->assertDontSee('<span>Tambah Master Barang</span>', false);
         $response->assertDontSee('data-bs-target="#modalTambahBarang"', false);
         $response->assertDontSee('id="modalTambahBarang"', false);
         $response->assertDontSee('id="modalTransaksiTerpadu"', false);
-        $response->assertDontSee('id="modalKelolaSatuan"', false);
+        $response->assertDontSee('id="modalKelolaMaster"', false);
     }
 
     public function test_admin_inventory_can_access_borrow_history_tab(): void

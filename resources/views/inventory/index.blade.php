@@ -580,9 +580,9 @@
 
         <button type="button"
                 class="btn-inv-secondary"
-                onclick="openMasterUnitModal()">
+                onclick="openMasterModal('kategori')">
             <i class="bi bi-tags"></i>
-            <span>Kelola Satuan</span>
+            <span>Kelola Master</span>
         </button>
 
         <button type="button"
@@ -1752,8 +1752,13 @@
 
                     <!-- 2. Kategori -->
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold">2. Kategori <span class="text-danger">*</span></label>
-                        <select name="kategori" class="form-select form-select-sm" required>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold mb-0">2. Kategori <span class="text-danger">*</span></label>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterModal('kategori', 'modalTambahBarang')" style="font-size: 11px;">
+                                + Kelola Kategori
+                            </button>
+                        </div>
+                        <select name="kategori" id="addMasterKategoriSelect" class="form-select form-select-sm" required>
                             @foreach($kategoriList as $kat)
                                 <option value="{{ $kat }}">{{ $kat }}</option>
                             @endforeach
@@ -1777,8 +1782,8 @@
                     <div class="col-md-4">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label small fw-bold mb-0">4. Satuan <span class="text-danger">*</span></label>
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterUnitModal()" style="font-size: 11px;">
-                                <i class="bi bi-gear me-0.5"></i>Kelola Satuan
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterModal('satuan', 'modalTambahBarang')" style="font-size: 11px;">
+                                + Kelola Satuan
                             </button>
                         </div>
                         <select name="satuan" id="addMasterSatuanSelect" class="form-select form-select-sm" required>
@@ -1882,7 +1887,12 @@
 
                     <!-- 2. Kategori -->
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold">2. Kategori <span class="text-danger">*</span></label>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold mb-0">2. Kategori <span class="text-danger">*</span></label>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterModal('kategori', 'modalEditMasterGlobal')" style="font-size: 11px;">
+                                + Kelola Kategori
+                            </button>
+                        </div>
                         <select name="kategori" id="editKategori" class="form-select form-select-sm" required>
                             @foreach($kategoriList as $kat)
                                 <option value="{{ $kat }}">{{ $kat }}</option>
@@ -1900,8 +1910,8 @@
                     <div class="col-md-4">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label small fw-bold mb-0">4. Satuan <span class="text-danger">*</span></label>
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterUnitModal()" style="font-size: 11px;">
-                                <i class="bi bi-gear me-0.5"></i>Kelola Satuan
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openMasterModal('satuan', 'modalEditMasterGlobal')" style="font-size: 11px;">
+                                + Kelola Satuan
                             </button>
                         </div>
                         <select name="satuan" id="editSatuan" class="form-select form-select-sm" required>
@@ -1971,9 +1981,9 @@
     </div>
 </div>
 
-<!-- MODAL KELOLA MASTER SATUAN BARANG -->
-<div class="modal fade" id="modalKelolaSatuan" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width: 620px;">
+<!-- MODAL KELOLA MASTER (KATEGORI & SATUAN BARANG) -->
+<div class="modal fade" id="modalKelolaMaster" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 680px;">
         <div class="modal-content shadow border-0">
             <div class="modal-header py-2.5 px-3 bg-light border-bottom">
                 <div class="d-flex align-items-center gap-2">
@@ -1981,73 +1991,226 @@
                         <i class="bi bi-tags-fill"></i>
                     </div>
                     <div>
-                        <h6 class="modal-title fw-bold text-dark mb-0">Kelola Master Satuan Barang</h6>
-                        <small class="text-muted" style="font-size: 11.5px;">Daftar satuan pengukuran untuk master barang dan transaksi</small>
+                        <h6 class="modal-title fw-bold text-dark mb-0">Kelola Master Inventory</h6>
+                        <small class="text-muted" style="font-size: 11.5px;">Pengelolaan data master Kategori Barang dan Satuan Barang</small>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
-                <!-- Form Tambah Satuan Cepat -->
-                <div class="p-2.5 bg-light rounded border mb-3">
-                    <form id="formAddSatuan" onsubmit="submitAddSatuan(event)">
-                        <label class="form-label small fw-bold mb-1"><i class="bi bi-plus-circle me-1 text-primary"></i>Tambah Satuan Baru</label>
-                        <div class="input-group input-group-sm">
-                            <input type="text"
-                                   id="newSatuanNameInput"
-                                   class="form-control"
-                                   placeholder="Contoh: Roll, Set, Pack, Pasang, Zak..."
-                                   maxlength="50"
-                                   required>
-                            <button type="submit" class="btn btn-primary" id="btnSubmitAddSatuan">
-                                <i class="bi bi-plus-lg me-1"></i>Tambah
-                            </button>
+                <!-- Notifikasi Operasi Master -->
+                <div id="masterModalFeedback" class="alert py-2 px-3 small d-none mb-3" role="alert"></div>
+
+                <!-- Tab Navigasi Kelola Master -->
+                <ul class="nav nav-tabs nav-fill mb-3" id="kelolaMasterTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-semibold small py-2"
+                                id="tabMasterKategori"
+                                data-bs-toggle="tab"
+                                data-bs-target="#paneMasterKategori"
+                                type="button"
+                                role="tab"
+                                aria-controls="paneMasterKategori"
+                                aria-selected="true">
+                            <i class="bi bi-folder2-open me-1"></i>Kategori
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold small py-2"
+                                id="tabMasterSatuan"
+                                data-bs-toggle="tab"
+                                data-bs-target="#paneMasterSatuan"
+                                type="button"
+                                role="tab"
+                                aria-controls="paneMasterSatuan"
+                                aria-selected="false">
+                            <i class="bi bi-rulers me-1"></i>Satuan
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="kelolaMasterTabContent">
+                    <!-- TAB 1: KATEGORI -->
+                    <div class="tab-pane fade show active" id="paneMasterKategori" role="tabpanel" aria-labelledby="tabMasterKategori">
+                        <!-- Form Tambah Kategori Cepat -->
+                        <div class="p-2.5 bg-light rounded border mb-3">
+                            <form id="formAddKategori" onsubmit="submitAddKategori(event)">
+                                <label class="form-label small fw-bold mb-1"><i class="bi bi-plus-circle me-1 text-primary"></i>Tambah Kategori Baru</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text"
+                                           id="newKategoriNameInput"
+                                           class="form-control"
+                                           placeholder="Contoh: Alat Pelindung Pernapasan, Peralatan Listrik..."
+                                           maxlength="100"
+                                           required>
+                                    <button type="submit" class="btn btn-primary" id="btnSubmitAddKategori">
+                                        <i class="bi bi-plus-lg me-1"></i>Tambah
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 11px;">
+                                    * Kategori duplikat (huruf besar/kecil atau spasi ganda) otomatis dicegah oleh sistem.
+                                </small>
+                            </form>
                         </div>
-                        <small class="text-muted d-block mt-1" style="font-size: 11px;">
-                            * Satuan duplikat (huruf besar/kecil atau spasi ganda) otomatis dicegah oleh sistem.
-                        </small>
-                    </form>
-                </div>
 
-                <!-- Filter Pencarian Satuan -->
-                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
-                        <input type="text"
-                               id="searchSatuanInput"
-                               class="form-control"
-                               placeholder="Cari nama satuan..."
-                               oninput="renderSatuanTable()">
+                        <!-- Filter Pencarian Kategori -->
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                                <input type="text"
+                                       id="searchKategoriInput"
+                                       class="form-control"
+                                       placeholder="Cari nama kategori..."
+                                       oninput="renderKategoriTable()">
+                            </div>
+                            <span id="kategoriCountBadge" class="badge bg-secondary-subtle text-secondary font-monospace flex-shrink-0" style="font-size: 11px;">
+                                Total: 0 Kategori
+                            </span>
+                        </div>
+
+                        <!-- Tabel Master Kategori -->
+                        <div class="table-responsive border rounded" style="max-height: 320px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 8%;" class="text-center">No</th>
+                                        <th style="width: 42%;">Nama Kategori</th>
+                                        <th style="width: 16%;" class="text-center">Status</th>
+                                        <th style="width: 16%;" class="text-center">Pemakaian</th>
+                                        <th style="width: 18%;" class="text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kategoriTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">
+                                            <span class="spinner-border spinner-border-sm me-1"></span> Memuat data kategori...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <span id="satuanCountBadge" class="badge bg-secondary-subtle text-secondary font-monospace flex-shrink-0" style="font-size: 11px;">
-                        Total: 0 Satuan
-                    </span>
-                </div>
 
-                <!-- Tabel Master Satuan -->
-                <div class="table-responsive border rounded" style="max-height: 320px; overflow-y: auto;">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th style="width: 8%;" class="text-center">No</th>
-                                <th style="width: 38%;">Nama Satuan</th>
-                                <th style="width: 18%;" class="text-center">Status</th>
-                                <th style="width: 18%;" class="text-center">Pemakaian</th>
-                                <th style="width: 18%;" class="text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="satuanTableBody">
-                            <tr>
-                                <td colspan="5" class="text-center py-3 text-muted">
-                                    <span class="spinner-border spinner-border-sm me-1"></span> Memuat data satuan...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <!-- TAB 2: SATUAN (Menggunakan fitur Kelola Satuan yang sudah tersedia) -->
+                    <div class="tab-pane fade" id="paneMasterSatuan" role="tabpanel" aria-labelledby="tabMasterSatuan">
+                        <!-- Form Tambah Satuan Cepat -->
+                        <div class="p-2.5 bg-light rounded border mb-3">
+                            <form id="formAddSatuan" onsubmit="submitAddSatuan(event)">
+                                <label class="form-label small fw-bold mb-1"><i class="bi bi-plus-circle me-1 text-primary"></i>Tambah Satuan Baru</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text"
+                                           id="newSatuanNameInput"
+                                           class="form-control"
+                                           placeholder="Contoh: Roll, Set, Pack, Pasang, Zak..."
+                                           maxlength="50"
+                                           required>
+                                    <button type="submit" class="btn btn-primary" id="btnSubmitAddSatuan">
+                                        <i class="bi bi-plus-lg me-1"></i>Tambah
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 11px;">
+                                    * Satuan duplikat (huruf besar/kecil atau spasi ganda) otomatis dicegah oleh sistem.
+                                </small>
+                            </form>
+                        </div>
+
+                        <!-- Filter Pencarian Satuan -->
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                                <input type="text"
+                                       id="searchSatuanInput"
+                                       class="form-control"
+                                       placeholder="Cari nama satuan..."
+                                       oninput="renderSatuanTable()">
+                            </div>
+                            <span id="satuanCountBadge" class="badge bg-secondary-subtle text-secondary font-monospace flex-shrink-0" style="font-size: 11px;">
+                                Total: 0 Satuan
+                            </span>
+                        </div>
+
+                        <!-- Tabel Master Satuan -->
+                        <div class="table-responsive border rounded" style="max-height: 320px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 8%;" class="text-center">No</th>
+                                        <th style="width: 38%;">Nama Satuan</th>
+                                        <th style="width: 18%;" class="text-center">Status</th>
+                                        <th style="width: 18%;" class="text-center">Pemakaian</th>
+                                        <th style="width: 18%;" class="text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="satuanTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">
+                                            <span class="spinner-border spinner-border-sm me-1"></span> Memuat data satuan...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end">
-                <button type="button" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" id="btnCloseMasterModal" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CUSTOM EDIT NAMA KATEGORI / SATUAN (KELOLA MASTER) -->
+<div class="modal fade" id="modalMasterEditDialog" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 400px;">
+        <form id="formMasterEditDialog" class="modal-content" onsubmit="submitMasterEditDialog(event)" novalidate>
+            <div class="modal-header py-2.5 px-3 bg-light border-bottom">
+                <h6 class="modal-title fw-bold text-dark mb-0" id="masterEditDialogTitle">
+                    <i class="bi bi-pencil-square text-primary me-2"></i>Edit Data Master
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="mb-2">
+                    <label for="masterEditInput" id="masterEditInputLabel" class="form-label small fw-bold mb-1">Nama Baru <span class="text-danger">*</span></label>
+                    <input type="text"
+                           id="masterEditInput"
+                           class="form-control form-control-sm"
+                           maxlength="100"
+                           required>
+                    <div id="masterEditError" class="text-danger small mt-1 d-none" style="font-size: 11.5px;"></div>
+                </div>
+                <small class="text-muted d-block" style="font-size: 11px;">
+                    Perubahan nama akan otomatis diperbarui pada data terkait.
+                </small>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light border-top justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" id="btnMasterEditSave" class="btn btn-primary btn-sm px-3">
+                    <i class="bi bi-check-lg me-1"></i>Simpan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL CUSTOM KONFIRMASI, PERINGATAN & NOTIFIKASI (KELOLA MASTER) -->
+<div class="modal fade" id="modalMasterActionDialog" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 400px;">
+        <div class="modal-content text-center p-3">
+            <div class="modal-body pb-2">
+                <div id="masterActionIcon" class="text-primary mb-2">
+                    <i class="bi bi-info-circle fs-1"></i>
+                </div>
+                <h6 id="masterActionTitle" class="fw-bold text-dark mb-1">Konfirmasi</h6>
+                <div id="masterActionBadgeWrap" class="p-2 bg-light rounded border my-2 d-none">
+                    <div id="masterActionBadge" class="fw-bold text-dark small"></div>
+                </div>
+                <p id="masterActionMessage" class="text-muted small mb-2"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+                <button type="button" id="masterActionCancelBtn" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                <button type="button" id="masterActionConfirmBtn" class="btn btn-primary btn-sm px-3">OK</button>
             </div>
         </div>
     </div>
@@ -2798,7 +2961,19 @@
 
         document.getElementById('editBarangId').value = item.barang_id || '';
         document.getElementById('editNamaBarang').value = item.nama_barang || '';
-        document.getElementById('editKategori').value = item.kategori || '';
+
+        const resolvedKategori = (typeof resolveRenamedCategory === 'function')
+            ? resolveRenamedCategory(item.kategori || '')
+            : (item.kategori || '');
+        const kategoriSelect = document.getElementById('editKategori');
+        if (kategoriSelect) {
+            let katExists = Array.from(kategoriSelect.options).some(opt => opt.value === resolvedKategori);
+            if (!katExists && resolvedKategori) {
+                const opt = new Option(resolvedKategori, resolvedKategori, true, true);
+                kategoriSelect.add(opt);
+            }
+            kategoriSelect.value = resolvedKategori;
+        }
 
         const satuanSelect = document.getElementById('editSatuan');
         if (satuanSelect) {
@@ -4313,15 +4488,707 @@
         modal.show();
     }
 
-    // 10. KELOLA MASTER SATUAN BARANG (Tambah, Edit, Toggle, Hapus & Sinkronisasi Dropdown)
-    let MASTER_UNITS_DATA = @json($allUnits ?? []);
+    // 10. KELOLA MASTER INVENTORY (KATEGORI & SATUAN BARANG + SINKRONISASI DROPDOWN)
+    let MASTER_UNITS_DATA = @json($units ?? []);
+    let MASTER_CATEGORIES_DATA = @json($categories ?? []);
+    let CATEGORY_RENAME_MAP = {};
+    let MASTER_RETURN_MODAL_ID = null;
+    let MASTER_SUSPEND_RETURN = false;
+    let MASTER_EDIT_CALLBACK = null;
+    let MASTER_ACTION_CALLBACK = null;
 
-    function openMasterUnitModal() {
-        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalKelolaSatuan'));
-        modal.show();
-        loadUnitsData();
+    function resolveRenamedCategory(name) {
+        let current = name;
+        const visited = new Set();
+        while (current && CATEGORY_RENAME_MAP[current] && !visited.has(current)) {
+            visited.add(current);
+            current = CATEGORY_RENAME_MAP[current];
+        }
+        return current;
     }
 
+    function showMasterFeedback(message, type = 'success') {
+        const box = document.getElementById('masterModalFeedback');
+        if (!box) return;
+        const icon = type === 'success'
+            ? '<i class="bi bi-check-circle-fill me-1"></i>'
+            : '<i class="bi bi-exclamation-triangle-fill me-1"></i>';
+        box.className = `alert alert-${type} py-2 px-3 small mb-3`;
+        box.innerHTML = `${icon}${escapeHtml(message)}`;
+        box.classList.remove('d-none');
+    }
+
+    function hideMasterFeedback() {
+        const box = document.getElementById('masterModalFeedback');
+        if (box) box.classList.add('d-none');
+    }
+
+    function openMasterSubModal(subModalId, onReady = null) {
+        const masterEl = document.getElementById('modalKelolaMaster');
+        const subEl = document.getElementById(subModalId);
+        if (!subEl) return;
+
+        const showSub = () => {
+            const subModal = bootstrap.Modal.getOrCreateInstance(subEl);
+            subModal.show();
+            if (typeof onReady === 'function') {
+                onReady();
+            }
+        };
+
+        const masterModal = masterEl ? bootstrap.Modal.getInstance(masterEl) : null;
+        if (masterModal && masterEl.classList.contains('show')) {
+            MASTER_SUSPEND_RETURN = true;
+            masterEl.addEventListener('hidden.bs.modal', function onMasterTempHidden() {
+                showSub();
+            }, { once: true });
+            masterModal.hide();
+        } else {
+            showSub();
+        }
+    }
+
+    function showMasterEditModal({ title, label, initialValue = '', maxLength = 100, onSubmit }) {
+        const titleEl = document.getElementById('masterEditDialogTitle');
+        const labelEl = document.getElementById('masterEditInputLabel');
+        const inputEl = document.getElementById('masterEditInput');
+        const errEl = document.getElementById('masterEditError');
+
+        if (titleEl) {
+            titleEl.innerHTML = `<i class="bi bi-pencil-square text-primary me-2"></i>${escapeHtml(title || 'Edit Data Master')}`;
+        }
+        if (labelEl) {
+            labelEl.innerHTML = `${escapeHtml(label || 'Nama Baru')} <span class="text-danger">*</span>`;
+        }
+        if (inputEl) {
+            inputEl.value = initialValue || '';
+            inputEl.maxLength = maxLength;
+        }
+        if (errEl) {
+            errEl.textContent = '';
+            errEl.classList.add('d-none');
+        }
+
+        MASTER_EDIT_CALLBACK = onSubmit;
+        openMasterSubModal('modalMasterEditDialog', () => {
+            setTimeout(() => {
+                if (inputEl) {
+                    inputEl.focus();
+                    inputEl.select();
+                }
+            }, 150);
+        });
+    }
+
+    function submitMasterEditDialog(event) {
+        event.preventDefault();
+        const inputEl = document.getElementById('masterEditInput');
+        const errEl = document.getElementById('masterEditError');
+        const trimmed = (inputEl?.value || '').trim();
+
+        if (!trimmed) {
+            if (errEl) {
+                errEl.textContent = 'Nama tidak boleh kosong.';
+                errEl.classList.remove('d-none');
+            }
+            inputEl?.focus();
+            return;
+        }
+
+        const cb = MASTER_EDIT_CALLBACK;
+        MASTER_EDIT_CALLBACK = null;
+        const editEl = document.getElementById('modalMasterEditDialog');
+        const editModal = editEl ? bootstrap.Modal.getInstance(editEl) : null;
+
+        const runCb = () => {
+            if (typeof cb === 'function') cb(trimmed);
+        };
+
+        if (editModal && editEl.classList.contains('show')) {
+            editEl.addEventListener('hidden.bs.modal', runCb, { once: true });
+            editModal.hide();
+        } else {
+            runCb();
+        }
+    }
+
+    function showMasterDialog({
+        variant = 'confirm',
+        title = 'Konfirmasi',
+        badgeText = '',
+        message = '',
+        confirmText = 'OK',
+        cancelText = 'Batal',
+        showCancel = true,
+        onConfirm = null,
+    }) {
+        const iconEl = document.getElementById('masterActionIcon');
+        const titleEl = document.getElementById('masterActionTitle');
+        const badgeWrap = document.getElementById('masterActionBadgeWrap');
+        const badgeEl = document.getElementById('masterActionBadge');
+        const msgEl = document.getElementById('masterActionMessage');
+        const cancelBtn = document.getElementById('masterActionCancelBtn');
+        const confirmBtn = document.getElementById('masterActionConfirmBtn');
+
+        const variantMap = {
+            success: { iconClass: 'text-success', icon: 'bi-check-circle-fill', btnClass: 'btn-success' },
+            warning: { iconClass: 'text-warning', icon: 'bi-exclamation-triangle-fill', btnClass: 'btn-warning text-dark' },
+            danger:  { iconClass: 'text-danger',  icon: 'bi-exclamation-triangle',      btnClass: 'btn-danger' },
+            confirm: { iconClass: 'text-primary', icon: 'bi-question-circle-fill',     btnClass: 'btn-primary' },
+        };
+        const cfg = variantMap[variant] || variantMap.confirm;
+
+        if (iconEl) {
+            iconEl.className = `${cfg.iconClass} mb-2`;
+            iconEl.innerHTML = `<i class="bi ${cfg.icon} fs-1"></i>`;
+        }
+        if (titleEl) titleEl.textContent = title;
+        if (badgeWrap && badgeEl) {
+            if (badgeText) {
+                badgeEl.textContent = badgeText;
+                badgeWrap.classList.remove('d-none');
+            } else {
+                badgeWrap.classList.add('d-none');
+            }
+        }
+        if (msgEl) msgEl.textContent = message;
+        if (cancelBtn) {
+            cancelBtn.textContent = cancelText;
+            cancelBtn.classList.toggle('d-none', !showCancel);
+        }
+        if (confirmBtn) {
+            confirmBtn.textContent = confirmText;
+            confirmBtn.className = `btn ${cfg.btnClass} btn-sm px-3`;
+        }
+
+        MASTER_ACTION_CALLBACK = onConfirm;
+        openMasterSubModal('modalMasterActionDialog');
+    }
+
+    function switchMasterTab(tabName) {
+        const tabBtnId = tabName === 'satuan' ? 'tabMasterSatuan' : 'tabMasterKategori';
+        const tabBtn = document.getElementById(tabBtnId);
+        if (tabBtn && window.bootstrap) {
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+        }
+    }
+
+    function openMasterModal(defaultTab = 'kategori', returnModalId = null) {
+        MASTER_RETURN_MODAL_ID = returnModalId || null;
+        MASTER_SUSPEND_RETURN = false;
+        hideMasterFeedback();
+
+        const closeBtn = document.getElementById('btnCloseMasterModal');
+        if (closeBtn) {
+            closeBtn.textContent = MASTER_RETURN_MODAL_ID ? 'Kembali ke Form' : 'Tutup';
+        }
+
+        const showTarget = () => {
+            const masterEl = document.getElementById('modalKelolaMaster');
+            if (!masterEl) return;
+            const masterModal = bootstrap.Modal.getOrCreateInstance(masterEl);
+            masterModal.show();
+            switchMasterTab(defaultTab);
+            loadCategoriesData();
+            loadUnitsData();
+        };
+
+        if (returnModalId) {
+            const sourceEl = document.getElementById(returnModalId);
+            const sourceModal = sourceEl ? bootstrap.Modal.getInstance(sourceEl) : null;
+            if (sourceModal && sourceEl.classList.contains('show')) {
+                sourceEl.addEventListener('hidden.bs.modal', function onSourceHidden() {
+                    showTarget();
+                }, { once: true });
+                sourceModal.hide();
+                return;
+            }
+        }
+
+        showTarget();
+    }
+
+    function openMasterUnitModal() {
+        openMasterModal('satuan', null);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const masterEl = document.getElementById('modalKelolaMaster');
+        if (masterEl) {
+            masterEl.addEventListener('hidden.bs.modal', function() {
+                if (MASTER_SUSPEND_RETURN) {
+                    return;
+                }
+                if (MASTER_RETURN_MODAL_ID) {
+                    const targetId = MASTER_RETURN_MODAL_ID;
+                    MASTER_RETURN_MODAL_ID = null;
+                    const targetEl = document.getElementById(targetId);
+                    if (targetEl) {
+                        bootstrap.Modal.getOrCreateInstance(targetEl).show();
+                    }
+                }
+            });
+        }
+
+        const restoreMasterModal = () => {
+            if (MASTER_SUSPEND_RETURN && masterEl) {
+                MASTER_SUSPEND_RETURN = false;
+                bootstrap.Modal.getOrCreateInstance(masterEl).show();
+            }
+        };
+
+        const editDialogEl = document.getElementById('modalMasterEditDialog');
+        if (editDialogEl) {
+            editDialogEl.addEventListener('hidden.bs.modal', function() {
+                // Jika ditutup via Batal / X tanpa submit, kembalikan modal Kelola Master
+                if (!MASTER_EDIT_CALLBACK && MASTER_SUSPEND_RETURN) {
+                    restoreMasterModal();
+                } else if (MASTER_EDIT_CALLBACK) {
+                    MASTER_EDIT_CALLBACK = null;
+                    restoreMasterModal();
+                }
+            });
+        }
+
+        const actionDialogEl = document.getElementById('modalMasterActionDialog');
+        if (actionDialogEl) {
+            const confirmBtn = document.getElementById('masterActionConfirmBtn');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function() {
+                    const cb = MASTER_ACTION_CALLBACK;
+                    MASTER_ACTION_CALLBACK = null;
+                    const inst = bootstrap.Modal.getInstance(actionDialogEl);
+                    if (inst && actionDialogEl.classList.contains('show')) {
+                        actionDialogEl.addEventListener('hidden.bs.modal', function() {
+                            if (typeof cb === 'function') {
+                                cb();
+                            } else {
+                                restoreMasterModal();
+                            }
+                        }, { once: true });
+                        inst.hide();
+                    }
+                });
+            }
+
+            actionDialogEl.addEventListener('hidden.bs.modal', function() {
+                // Jika ditutup via Batal / X, kembalikan modal Kelola Master
+                if (MASTER_ACTION_CALLBACK !== null) {
+                    MASTER_ACTION_CALLBACK = null;
+                    restoreMasterModal();
+                } else if (MASTER_SUSPEND_RETURN) {
+                    restoreMasterModal();
+                }
+            });
+        }
+    });
+
+    // --- TAB 1: KELOLA KATEGORI ---
+    function loadCategoriesData(renamedOld = null, renamedNew = null) {
+        fetch('{{ route('inventory.categories.index') }}', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.success && Array.isArray(res.data)) {
+                MASTER_CATEGORIES_DATA = res.data;
+                renderKategoriTable();
+                syncKategoriDropdowns(renamedOld, renamedNew);
+            }
+        })
+        .catch(err => {
+            console.error('Gagal memuat data kategori:', err);
+            renderKategoriTable();
+        });
+    }
+
+    function renderKategoriTable() {
+        const tbody = document.getElementById('kategoriTableBody');
+        const countBadge = document.getElementById('kategoriCountBadge');
+        const searchInput = document.getElementById('searchKategoriInput');
+        if (!tbody) return;
+
+        const kw = (searchInput?.value || '').trim().toLowerCase();
+        const filtered = MASTER_CATEGORIES_DATA.filter(c => !kw || (c.name || '').toLowerCase().includes(kw));
+
+        if (countBadge) {
+            countBadge.textContent = `Total: ${filtered.length} Kategori`;
+        }
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted small">
+                        <i class="bi bi-info-circle me-1"></i>Tidak ada kategori yang cocok.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map((c, idx) => {
+            const isAktif = !!c.is_active;
+            const statusBadge = isAktif
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Aktif</span>'
+                : '<span class="badge bg-secondary-subtle text-secondary border">Nonaktif</span>';
+            const usageCount = parseInt(c.usage_count, 10) || 0;
+            const usageBadge = usageCount > 0
+                ? `<span class="badge bg-light text-dark border font-monospace" title="${usageCount} barang menggunakan kategori ini">${usageCount} barang</span>`
+                : `<span class="badge bg-light text-muted border font-monospace">0 barang</span>`;
+
+            return `
+                <tr data-category-id="${c.id}">
+                    <td class="text-center text-muted small">${idx + 1}</td>
+                    <td>
+                        <strong class="text-dark small">${escapeHtml(c.name)}</strong>
+                    </td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">${usageBadge}</td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <button type="button"
+                                    class="btn btn-outline-secondary py-0 px-2"
+                                    title="Edit Nama Kategori"
+                                    onclick="promptEditKategori(${c.id}, '${escapeJs(c.name)}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button"
+                                    class="btn ${isAktif ? 'btn-outline-warning' : 'btn-outline-success'} py-0 px-2"
+                                    title="${isAktif ? 'Nonaktifkan Kategori' : 'Aktifkan Kategori'}"
+                                    onclick="toggleKategoriStatus(${c.id}, '${escapeJs(c.name)}', ${isAktif ? 'true' : 'false'})">
+                                <i class="bi ${isAktif ? 'bi-toggle-on' : 'bi-toggle-off'}"></i>
+                            </button>
+                            <button type="button"
+                                    class="btn btn-outline-danger py-0 px-2"
+                                    title="Hapus Kategori"
+                                    onclick="confirmDeleteKategori(${c.id}, '${escapeJs(c.name)}', ${usageCount})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function submitAddKategori(event) {
+        event.preventDefault();
+        const input = document.getElementById('newKategoriNameInput');
+        const btn = document.getElementById('btnSubmitAddKategori');
+        const name = (input?.value || '').trim();
+
+        if (!name) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+
+        fetch('{{ route('inventory.categories.store') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ name: name })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Gagal menambahkan kategori.');
+            }
+            return data;
+        })
+        .then(data => {
+            input.value = '';
+            const msg = data.message || 'Kategori berhasil ditambahkan.';
+            showMasterFeedback(msg, 'success');
+            loadCategoriesData();
+            showMasterDialog({
+                variant: 'success',
+                title: 'Kategori Ditambahkan',
+                message: msg,
+                confirmText: 'OK',
+                showCancel: false
+            });
+        })
+        .catch(err => {
+            showMasterFeedback(err.message, 'danger');
+            showMasterDialog({
+                variant: 'danger',
+                title: 'Gagal Menambahkan Kategori',
+                message: err.message,
+                confirmText: 'Tutup',
+                showCancel: false
+            });
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-plus-lg me-1"></i>Tambah';
+        });
+    }
+
+    function promptEditKategori(categoryId, currentName) {
+        showMasterEditModal({
+            title: 'Edit Nama Kategori',
+            label: 'Nama Kategori',
+            initialValue: currentName,
+            maxLength: 100,
+            onSubmit: (trimmed) => {
+                if (trimmed === currentName) {
+                    const masterEl = document.getElementById('modalKelolaMaster');
+                    if (MASTER_SUSPEND_RETURN && masterEl) {
+                        MASTER_SUSPEND_RETURN = false;
+                        bootstrap.Modal.getOrCreateInstance(masterEl).show();
+                    }
+                    return;
+                }
+
+                fetch(`{{ url('inventory/categories') }}/${categoryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ name: trimmed })
+                })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        throw new Error(data.message || 'Gagal memperbarui kategori.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    const oldName = data.old_name || currentName;
+                    const updatedName = data.data?.name || trimmed;
+                    if (oldName !== updatedName) {
+                        CATEGORY_RENAME_MAP[oldName] = updatedName;
+                    }
+                    const msg = data.message || 'Kategori berhasil diperbarui.';
+                    showMasterFeedback(msg, 'success');
+                    loadCategoriesData(oldName, updatedName);
+                    showMasterDialog({
+                        variant: 'success',
+                        title: 'Kategori Diperbarui',
+                        badgeText: updatedName,
+                        message: msg,
+                        confirmText: 'OK',
+                        showCancel: false
+                    });
+                })
+                .catch(err => {
+                    showMasterFeedback(err.message, 'danger');
+                    showMasterDialog({
+                        variant: 'danger',
+                        title: 'Gagal Memperbarui Kategori',
+                        message: err.message,
+                        confirmText: 'Tutup',
+                        showCancel: false
+                    });
+                });
+            }
+        });
+    }
+
+    function toggleKategoriStatus(categoryId, categoryName = '', isCurrentlyActive = true, skipConfirm = false) {
+        const executeToggle = () => {
+            fetch(`{{ url('inventory/categories') }}/${categoryId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal mengubah status kategori.');
+                }
+                return data;
+            })
+            .then(data => {
+                const msg = data.message || 'Status kategori berhasil diperbarui.';
+                showMasterFeedback(msg, 'success');
+                loadCategoriesData();
+                showMasterDialog({
+                    variant: 'success',
+                    title: 'Status Kategori Diperbarui',
+                    message: msg,
+                    confirmText: 'OK',
+                    showCancel: false
+                });
+            })
+            .catch(err => {
+                showMasterFeedback(err.message, 'danger');
+                showMasterDialog({
+                    variant: 'danger',
+                    title: 'Gagal Mengubah Status',
+                    message: err.message,
+                    confirmText: 'Tutup',
+                    showCancel: false
+                });
+            });
+        };
+
+        if (skipConfirm) {
+            executeToggle();
+            return;
+        }
+
+        const actionLabel = isCurrentlyActive ? 'Nonaktifkan' : 'Aktifkan';
+        showMasterDialog({
+            variant: isCurrentlyActive ? 'warning' : 'confirm',
+            title: `${actionLabel} Kategori`,
+            badgeText: categoryName,
+            message: isCurrentlyActive
+                ? 'Kategori yang dinonaktifkan tidak akan muncul pada pilihan input baru, namun data barang lama tetap aman.'
+                : 'Kategori akan diaktifkan kembali dan tersedia pada pilihan dropdown input barang.',
+            confirmText: `Ya, ${actionLabel}`,
+            cancelText: 'Batal',
+            showCancel: true,
+            onConfirm: executeToggle
+        });
+    }
+
+    function confirmDeleteKategori(categoryId, categoryName, usageCount) {
+        if (usageCount > 0) {
+            const warnMsg = `Kategori "${categoryName}" tidak dapat dihapus karena masih digunakan oleh ${usageCount} data barang. Anda dapat menonaktifkannya agar tidak muncul pada pilihan input baru.`;
+            showMasterFeedback(warnMsg, 'warning');
+            showMasterDialog({
+                variant: 'warning',
+                title: 'Kategori Masih Digunakan',
+                badgeText: `${categoryName} (${usageCount} barang)`,
+                message: 'Kategori yang masih digunakan oleh barang tidak boleh dihapus. Apakah Anda ingin menonaktifkannya saja?',
+                confirmText: 'Nonaktifkan Saja',
+                cancelText: 'Tutup',
+                showCancel: true,
+                onConfirm: () => toggleKategoriStatus(categoryId, categoryName, true, true)
+            });
+            return;
+        }
+
+        showMasterDialog({
+            variant: 'danger',
+            title: 'Hapus Kategori',
+            badgeText: categoryName,
+            message: 'Apakah Anda yakin ingin menghapus kategori ini secara permanen?',
+            confirmText: 'Ya, Hapus',
+            cancelText: 'Batal',
+            showCancel: true,
+            onConfirm: () => {
+                fetch(`{{ url('inventory/categories') }}/${categoryId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        if (data.can_deactivate) {
+                            showMasterFeedback(data.message, 'warning');
+                            showMasterDialog({
+                                variant: 'warning',
+                                title: 'Kategori Masih Digunakan',
+                                badgeText: categoryName,
+                                message: data.message + ' Apakah Anda ingin menonaktifkannya saja?',
+                                confirmText: 'Nonaktifkan Saja',
+                                cancelText: 'Tutup',
+                                showCancel: true,
+                                onConfirm: () => toggleKategoriStatus(categoryId, categoryName, true, true)
+                            });
+                            return null;
+                        }
+                        throw new Error(data.message || 'Gagal menghapus kategori.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (data) {
+                        const msg = data.message || 'Kategori berhasil dihapus.';
+                        showMasterFeedback(msg, 'success');
+                        loadCategoriesData();
+                        showMasterDialog({
+                            variant: 'success',
+                            title: 'Kategori Dihapus',
+                            message: msg,
+                            confirmText: 'OK',
+                            showCancel: false
+                        });
+                    }
+                })
+                .catch(err => {
+                    showMasterFeedback(err.message, 'danger');
+                    showMasterDialog({
+                        variant: 'danger',
+                        title: 'Gagal Menghapus Kategori',
+                        message: err.message,
+                        confirmText: 'Tutup',
+                        showCancel: false
+                    });
+                });
+            }
+        });
+    }
+
+    function syncKategoriDropdowns(renamedOld = null, renamedNew = null) {
+        const activeNames = MASTER_CATEGORIES_DATA.filter(c => !!c.is_active).map(c => c.name);
+        if (activeNames.length === 0) return;
+
+        // Perbarui select pada Modal Tambah Master Barang
+        const addSelect = document.getElementById('addMasterKategoriSelect');
+        if (addSelect) {
+            let curVal = addSelect.value;
+            if (renamedOld && renamedNew && curVal === renamedOld) {
+                curVal = renamedNew;
+            }
+            addSelect.innerHTML = activeNames.map(n => `<option value="${escapeHtml(n)}" ${n === curVal ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+            if (curVal && activeNames.includes(curVal)) {
+                addSelect.value = curVal;
+            }
+        }
+
+        // Perbarui select pada Modal Edit Master Barang
+        const editSelect = document.getElementById('editKategori');
+        if (editSelect) {
+            let curVal = editSelect.value;
+            if (renamedOld && renamedNew && curVal === renamedOld) {
+                curVal = renamedNew;
+            }
+            editSelect.innerHTML = activeNames.map(n => `<option value="${escapeHtml(n)}" ${n === curVal ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+            if (curVal && !activeNames.includes(curVal)) {
+                editSelect.add(new Option(curVal, curVal, true, true));
+            } else if (curVal) {
+                editSelect.value = curVal;
+            }
+        }
+
+        // Perbarui dropdown filter kategori pada tab Master & Riwayat Transaksi
+        document.querySelectorAll('select[name="filter_category"], select[name="trx_kategori"]').forEach(sel => {
+            let curVal = sel.value;
+            if (renamedOld && renamedNew && curVal === renamedOld) {
+                curVal = renamedNew;
+            }
+            const opts = ['<option value="">Semua Kategori</option>']
+                .concat(activeNames.map(n => `<option value="${escapeHtml(n)}" ${n === curVal ? 'selected' : ''}>${escapeHtml(n)}</option>`));
+            sel.innerHTML = opts.join('');
+            if (curVal) sel.value = curVal;
+        });
+
+        // Perbarui tampilan badge kategori di tabel jika ada perubahan nama
+        if (renamedOld && renamedNew && renamedOld !== renamedNew) {
+            document.querySelectorAll('.badge-kategori').forEach(el => {
+                if (el.textContent.trim() === renamedOld) {
+                    el.textContent = renamedNew;
+                }
+            });
+        }
+    }
+
+    // --- TAB 2: KELOLA SATUAN (Tetap menggunakan mekanisme yang sudah berjalan) ---
     function loadUnitsData() {
         fetch('{{ route('inventory.units.index') }}', {
             headers: { 'Accept': 'application/json' }
@@ -4393,7 +5260,7 @@
                             <button type="button"
                                     class="btn ${isAktif ? 'btn-outline-warning' : 'btn-outline-success'} py-0 px-2"
                                     title="${isAktif ? 'Nonaktifkan Satuan' : 'Aktifkan Satuan'}"
-                                    onclick="toggleSatuanStatus(${u.id})">
+                                    onclick="toggleSatuanStatus(${u.id}, '${escapeJs(u.name)}', ${isAktif ? 'true' : 'false'})">
                                 <i class="bi ${isAktif ? 'bi-toggle-on' : 'bi-toggle-off'}"></i>
                             </button>
                             <button type="button"
@@ -4438,10 +5305,26 @@
         })
         .then(data => {
             input.value = '';
+            const msg = data.message || 'Satuan berhasil ditambahkan.';
+            showMasterFeedback(msg, 'success');
             loadUnitsData();
+            showMasterDialog({
+                variant: 'success',
+                title: 'Satuan Ditambahkan',
+                message: msg,
+                confirmText: 'OK',
+                showCancel: false
+            });
         })
         .catch(err => {
-            alert(err.message);
+            showMasterFeedback(err.message, 'danger');
+            showMasterDialog({
+                variant: 'danger',
+                title: 'Gagal Menambahkan Satuan',
+                message: err.message,
+                confirmText: 'Tutup',
+                showCancel: false
+            });
         })
         .finally(() => {
             btn.disabled = false;
@@ -4450,103 +5333,204 @@
     }
 
     function promptEditSatuan(unitId, currentName) {
-        const newName = prompt('Ubah nama satuan:', currentName);
-        if (newName === null) return;
-        const trimmed = newName.trim();
-        if (!trimmed) {
-            alert('Nama satuan tidak boleh kosong.');
-            return;
-        }
-        if (trimmed.toLowerCase() === currentName.toLowerCase()) return;
+        showMasterEditModal({
+            title: 'Edit Nama Satuan',
+            label: 'Nama Satuan',
+            initialValue: currentName,
+            maxLength: 50,
+            onSubmit: (trimmed) => {
+                if (trimmed === currentName) {
+                    const masterEl = document.getElementById('modalKelolaMaster');
+                    if (MASTER_SUSPEND_RETURN && masterEl) {
+                        MASTER_SUSPEND_RETURN = false;
+                        bootstrap.Modal.getOrCreateInstance(masterEl).show();
+                    }
+                    return;
+                }
 
-        fetch(`{{ url('inventory/units') }}/${unitId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({ name: trimmed })
-        })
-        .then(async res => {
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Gagal memperbarui satuan.');
+                fetch(`{{ url('inventory/units') }}/${unitId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ name: trimmed })
+                })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        throw new Error(data.message || 'Gagal memperbarui satuan.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    const msg = data.message || 'Satuan berhasil diperbarui.';
+                    showMasterFeedback(msg, 'success');
+                    loadUnitsData();
+                    showMasterDialog({
+                        variant: 'success',
+                        title: 'Satuan Diperbarui',
+                        badgeText: data.data?.name || trimmed,
+                        message: msg,
+                        confirmText: 'OK',
+                        showCancel: false
+                    });
+                })
+                .catch(err => {
+                    showMasterFeedback(err.message, 'danger');
+                    showMasterDialog({
+                        variant: 'danger',
+                        title: 'Gagal Memperbarui Satuan',
+                        message: err.message,
+                        confirmText: 'Tutup',
+                        showCancel: false
+                    });
+                });
             }
-            return data;
-        })
-        .then(data => {
-            loadUnitsData();
-        })
-        .catch(err => {
-            alert(err.message);
         });
     }
 
-    function toggleSatuanStatus(unitId) {
-        fetch(`{{ url('inventory/units') }}/${unitId}/toggle`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
-        })
-        .then(async res => {
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Gagal mengubah status satuan.');
-            }
-            return data;
-        })
-        .then(data => {
-            loadUnitsData();
-        })
-        .catch(err => {
-            alert(err.message);
+    function toggleSatuanStatus(unitId, unitName = '', isCurrentlyActive = true, skipConfirm = false) {
+        const executeToggle = () => {
+            fetch(`{{ url('inventory/units') }}/${unitId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal mengubah status satuan.');
+                }
+                return data;
+            })
+            .then(data => {
+                const msg = data.message || 'Status satuan berhasil diperbarui.';
+                showMasterFeedback(msg, 'success');
+                loadUnitsData();
+                showMasterDialog({
+                    variant: 'success',
+                    title: 'Status Satuan Diperbarui',
+                    message: msg,
+                    confirmText: 'OK',
+                    showCancel: false
+                });
+            })
+            .catch(err => {
+                showMasterFeedback(err.message, 'danger');
+                showMasterDialog({
+                    variant: 'danger',
+                    title: 'Gagal Mengubah Status',
+                    message: err.message,
+                    confirmText: 'Tutup',
+                    showCancel: false
+                });
+            });
+        };
+
+        if (skipConfirm) {
+            executeToggle();
+            return;
+        }
+
+        const actionLabel = isCurrentlyActive ? 'Nonaktifkan' : 'Aktifkan';
+        showMasterDialog({
+            variant: isCurrentlyActive ? 'warning' : 'confirm',
+            title: `${actionLabel} Satuan`,
+            badgeText: unitName,
+            message: isCurrentlyActive
+                ? 'Satuan yang dinonaktifkan tidak akan muncul pada pilihan input baru, namun data barang dan transaksi lama tetap aman.'
+                : 'Satuan akan diaktifkan kembali dan tersedia pada pilihan dropdown input barang.',
+            confirmText: `Ya, ${actionLabel}`,
+            cancelText: 'Batal',
+            showCancel: true,
+            onConfirm: executeToggle
         });
     }
 
     function confirmDeleteSatuan(unitId, unitName, usageCount) {
         if (usageCount > 0) {
-            const opt = confirm(`Satuan "${unitName}" tidak dapat dihapus permanen karena sedang digunakan (${usageCount}x pemakaian pada barang/transaksi).\n\nApakah Anda ingin menonaktifkannya saja agar tidak muncul pada pilihan input baru?`);
-            if (opt) {
-                toggleSatuanStatus(unitId);
-            }
+            const warnMsg = `Satuan "${unitName}" tidak dapat dihapus permanen karena sedang digunakan (${usageCount}x pemakaian pada barang/transaksi). Anda dapat menonaktifkannya agar tidak muncul pada pilihan input baru.`;
+            showMasterFeedback(warnMsg, 'warning');
+            showMasterDialog({
+                variant: 'warning',
+                title: 'Satuan Masih Digunakan',
+                badgeText: `${unitName} (${usageCount}x dipakai)`,
+                message: 'Satuan yang masih digunakan oleh barang/transaksi tidak boleh dihapus permanen. Apakah Anda ingin menonaktifkannya saja?',
+                confirmText: 'Nonaktifkan Saja',
+                cancelText: 'Tutup',
+                showCancel: true,
+                onConfirm: () => toggleSatuanStatus(unitId, unitName, true, true)
+            });
             return;
         }
 
-        if (!confirm(`Hapus satuan "${unitName}" secara permanen?`)) {
-            return;
-        }
-
-        fetch(`{{ url('inventory/units') }}/${unitId}`, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
-        })
-        .then(async res => {
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                if (data.can_deactivate) {
-                    if (confirm(data.message + '\n\nIngin menonaktifkan satuan ini?')) {
-                        toggleSatuanStatus(unitId);
+        showMasterDialog({
+            variant: 'danger',
+            title: 'Hapus Satuan',
+            badgeText: unitName,
+            message: 'Apakah Anda yakin ingin menghapus satuan ini secara permanen?',
+            confirmText: 'Ya, Hapus',
+            cancelText: 'Batal',
+            showCancel: true,
+            onConfirm: () => {
+                fetch(`{{ url('inventory/units') }}/${unitId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     }
-                    return null;
-                }
-                throw new Error(data.message || 'Gagal menghapus satuan.');
+                })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        if (data.can_deactivate) {
+                            showMasterFeedback(data.message, 'warning');
+                            showMasterDialog({
+                                variant: 'warning',
+                                title: 'Satuan Masih Digunakan',
+                                badgeText: unitName,
+                                message: data.message + ' Apakah Anda ingin menonaktifkannya saja?',
+                                confirmText: 'Nonaktifkan Saja',
+                                cancelText: 'Tutup',
+                                showCancel: true,
+                                onConfirm: () => toggleSatuanStatus(unitId, unitName, true, true)
+                            });
+                            return null;
+                        }
+                        throw new Error(data.message || 'Gagal menghapus satuan.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (data) {
+                        const msg = data.message || 'Satuan berhasil dihapus.';
+                        showMasterFeedback(msg, 'success');
+                        loadUnitsData();
+                        showMasterDialog({
+                            variant: 'success',
+                            title: 'Satuan Dihapus',
+                            message: msg,
+                            confirmText: 'OK',
+                            showCancel: false
+                        });
+                    }
+                })
+                .catch(err => {
+                    showMasterFeedback(err.message, 'danger');
+                    showMasterDialog({
+                        variant: 'danger',
+                        title: 'Gagal Menghapus Satuan',
+                        message: err.message,
+                        confirmText: 'Tutup',
+                        showCancel: false
+                    });
+                });
             }
-            return data;
-        })
-        .then(data => {
-            if (data) {
-                loadUnitsData();
-            }
-        })
-        .catch(err => {
-            alert(err.message);
         });
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryBorrowing;
 use App\Models\InventoryBorrowingReturn;
+use App\Models\InventoryCategory;
 use App\Models\InventoryItem;
 use App\Models\InventoryTransaction;
 use App\Models\InventoryUnit;
@@ -14,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller
@@ -408,12 +410,10 @@ class InventoryController extends Controller
             ->withQueryString();
 
         // Daftar Kategori, Satuan, Lokasi, PIC, dan Departemen untuk Dropdown Filter
-        $dbCategories = InventoryItem::select('kategori')
-            ->whereNotNull('kategori')
-            ->distinct()
-            ->pluck('kategori')
-            ->toArray();
-        $kategoriList = array_values(array_unique(array_merge(self::KATEGORI_LIST, $dbCategories)));
+        $kategoriList = InventoryCategory::getActiveNames();
+        $allCategories = Schema::hasTable('inventory_categories')
+            ? InventoryCategory::orderBy('name')->get()
+            : collect();
         $satuanList = InventoryUnit::getActiveNames();
         $allUnits = InventoryUnit::orderBy('name')->get();
         $locationList = self::LOCATION_LIST;
@@ -485,6 +485,7 @@ class InventoryController extends Controller
             'totalPeminjamanOverdue' => $totalPeminjamanOverdue,
             'totalHistoryPeminjaman' => $totalHistoryPeminjaman,
             'kategoriList' => $kategoriList,
+            'categories' => $allCategories,
             'satuanList' => $satuanList,
             'units' => $allUnits,
             'locationList' => $locationList,
@@ -762,6 +763,189 @@ class InventoryController extends Controller
                 'is_active' => $unit->is_active,
                 'usage_count' => $unit->usage_count,
                 'can_delete' => $unit->can_delete,
+            ];
+        })->all();
+    }
+
+    /**
+     * Ambil seluruh master kategori beserta status dan jumlah pemakaian.
+     */
+    public function getCategories(): JsonResponse
+    {
+        InventoryCategory::ensureDefaults();
+        $categories = $this->formatCategoriesList();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories,
+            'categories' => $categories,
+            'kategori_list' => InventoryCategory::getActiveNames(),
+        ]);
+    }
+
+    /**
+     * Tambah Master Kategori Baru.
+     */
+    public function storeCategory(Request $request): JsonResponse
+    {
+        $name = preg_replace('/\s+/', ' ', trim((string) $request->input('name')));
+        $request->merge(['name' => $name]);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'is_active' => 'nullable|boolean',
+        ], [
+            'name.required' => 'Nama kategori wajib diisi.',
+            'name.max' => 'Nama kategori maksimal 100 karakter.',
+        ]);
+
+        // Cek duplikasi case-insensitive
+        $existing = InventoryCategory::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => "Kategori '{$existing->name}' sudah terdaftar dalam sistem.",
+            ], 422);
+        }
+
+        $category = InventoryCategory::create([
+            'name' => $validated['name'],
+            'is_active' => array_key_exists('is_active', $validated) && $validated['is_active'] !== null
+                ? (bool) $validated['is_active']
+                : true,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Kategori '{$category->name}' berhasil ditambahkan.",
+            'data' => $category,
+            'categories' => $this->formatCategoriesList(),
+            'kategori_list' => InventoryCategory::getActiveNames(),
+        ]);
+    }
+
+    /**
+     * Edit / Update Nama Kategori.
+     */
+    public function updateCategory(Request $request, $id): JsonResponse
+    {
+        $category = InventoryCategory::findOrFail($id);
+        $name = preg_replace('/\s+/', ' ', trim((string) $request->input('name')));
+        $request->merge(['name' => $name]);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'is_active' => 'nullable|boolean',
+        ], [
+            'name.required' => 'Nama kategori wajib diisi.',
+            'name.max' => 'Nama kategori maksimal 100 karakter.',
+        ]);
+
+        // Cek duplikasi case-insensitive kecuali dirinya sendiri
+        $existing = InventoryCategory::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->where('id', '!=', $category->id)
+            ->first();
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => "Kategori '{$existing->name}' sudah terdaftar dalam sistem.",
+            ], 422);
+        }
+
+        $oldName = $category->name;
+
+        DB::transaction(function () use ($category, $validated, $oldName) {
+            $category->name = $validated['name'];
+            if (array_key_exists('is_active', $validated) && $validated['is_active'] !== null) {
+                $category->is_active = (bool) $validated['is_active'];
+            }
+            $category->save();
+
+            // Jika nama berubah, perbarui referensi nama di inventory_items agar relasi tetap terjaga
+            if ($oldName !== $category->name) {
+                DB::table('inventory_items')
+                    ->where('kategori', $oldName)
+                    ->update(['kategori' => $category->name]);
+
+                DB::table('inventory_items')
+                    ->where('category', $oldName)
+                    ->update(['category' => $category->name]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => "Kategori berhasil diperbarui menjadi '{$category->name}'.",
+            'old_name' => $oldName,
+            'data' => $category,
+            'categories' => $this->formatCategoriesList(),
+            'kategori_list' => InventoryCategory::getActiveNames(),
+        ]);
+    }
+
+    /**
+     * Hapus Kategori (hanya jika belum digunakan oleh barang).
+     */
+    public function destroyCategory(Request $request, $id): JsonResponse
+    {
+        $category = InventoryCategory::findOrFail($id);
+        $usageCount = $category->usage_count;
+
+        if ($usageCount > 0) {
+            return response()->json([
+                'success' => false,
+                'can_deactivate' => true,
+                'message' => "Kategori '{$category->name}' tidak dapat dihapus karena masih digunakan oleh {$usageCount} data barang. Anda dapat menonaktifkannya.",
+            ], 422);
+        }
+
+        $name = $category->name;
+        $category->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Kategori '{$name}' berhasil dihapus.",
+            'categories' => $this->formatCategoriesList(),
+            'kategori_list' => InventoryCategory::getActiveNames(),
+        ]);
+    }
+
+    /**
+     * Toggle status aktif / nonaktif Kategori.
+     */
+    public function toggleCategory(Request $request, $id): JsonResponse
+    {
+        $category = InventoryCategory::findOrFail($id);
+        $target = $request->has('is_active')
+            ? $request->boolean('is_active')
+            : !$category->is_active;
+
+        $category->is_active = $target;
+        $category->save();
+
+        $statusText = $category->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return response()->json([
+            'success' => true,
+            'message' => "Kategori '{$category->name}' berhasil {$statusText}.",
+            'is_active' => $category->is_active,
+            'categories' => $this->formatCategoriesList(),
+            'kategori_list' => InventoryCategory::getActiveNames(),
+        ]);
+    }
+
+    /**
+     * Format daftar kategori untuk respons JSON.
+     */
+    protected function formatCategoriesList(): array
+    {
+        return InventoryCategory::orderBy('name')->get()->map(function (InventoryCategory $category) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'is_active' => $category->is_active,
+                'usage_count' => $category->usage_count,
+                'can_delete' => $category->can_delete,
             ];
         })->all();
     }

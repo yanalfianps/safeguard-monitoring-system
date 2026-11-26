@@ -125,8 +125,9 @@ Route::prefix('inventory')->name('inventory.')->middleware(['auth', 'active.user
     Route::get('/transactions', [InventoryController::class, 'transactions'])->name('transactions')->middleware('not.inventory');
     Route::get('/search-items', [InventoryController::class, 'searchItems'])->name('search-items');
     Route::get('/units', [InventoryController::class, 'getUnits'])->name('units.index')->middleware('admin');
+    Route::get('/categories', [InventoryController::class, 'getCategories'])->name('categories.index')->middleware('admin');
 
-    // Write actions Master Barang, Satuan, & Catat Transaksi (Hanya Admin Management)
+    // Write actions Master Barang, Satuan, Kategori, & Catat Transaksi (Hanya Admin Management)
     Route::middleware(['admin'])->group(function () {
         Route::post('/', [InventoryController::class, 'storeItem'])->name('store');
         Route::put('/{inventory}', [InventoryController::class, 'updateItem'])->name('update');
@@ -138,6 +139,12 @@ Route::prefix('inventory')->name('inventory.')->middleware(['auth', 'active.user
         Route::put('/units/{unit}', [InventoryController::class, 'updateUnit'])->name('units.update');
         Route::delete('/units/{unit}', [InventoryController::class, 'destroyUnit'])->name('units.destroy');
         Route::post('/units/{unit}/toggle', [InventoryController::class, 'toggleUnit'])->name('units.toggle');
+
+        // Master Kategori CRUD
+        Route::post('/categories', [InventoryController::class, 'storeCategory'])->name('categories.store');
+        Route::put('/categories/{category}', [InventoryController::class, 'updateCategory'])->name('categories.update');
+        Route::delete('/categories/{category}', [InventoryController::class, 'destroyCategory'])->name('categories.destroy');
+        Route::post('/categories/{category}/toggle', [InventoryController::class, 'toggleCategory'])->name('categories.toggle');
     });
 
     // Peminjaman & Pengembalian Barang (Admin Management & Admin Inventory, Ditolak untuk User)

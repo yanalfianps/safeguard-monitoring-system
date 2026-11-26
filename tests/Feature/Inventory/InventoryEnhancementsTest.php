@@ -3,6 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\InventoryBorrowing;
+use App\Models\InventoryCategory;
 use App\Models\InventoryItem;
 use App\Models\InventoryTransaction;
 use App\Models\InventoryUnit;
@@ -429,10 +430,15 @@ class InventoryEnhancementsTest extends TestCase
         $response = $this->actingAs($admin)->get(route('inventory.index'));
         $response->assertStatus(200);
 
-        // Verify Master Satuan UI presence
-        $response->assertSee('modalKelolaSatuan', false);
-        $response->assertSee('Kelola Satuan', false);
+        // Verify Kelola Master (Kategori & Satuan) UI presence
+        $response->assertSee('modalKelolaMaster', false);
+        $response->assertSee('Kelola Master', false);
+        $response->assertSee('tabMasterKategori', false);
+        $response->assertSee('tabMasterSatuan', false);
+        $response->assertSee('newKategoriNameInput', false);
         $response->assertSee('newSatuanNameInput', false);
+        $response->assertSee('+ Kelola Kategori', false);
+        $response->assertSee('+ Kelola Satuan', false);
 
         // Verify Integrated Autocomplete in Catatan Transaksi presence
         $response->assertSee('modalTransaksiTerpadu', false);
@@ -445,5 +451,126 @@ class InventoryEnhancementsTest extends TestCase
         $response->assertSee('borrowLocationSelect', false);
         $response->assertSee('borrowLocationHidden', false);
         $response->assertSee('borrowLocationNote', false);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MASTER DATA KATEGORI (KELOLA MASTER)
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_categories_api_returns_all_categories_with_usage_count(): void
+    {
+        $admin = $this->getAdmin();
+        InventoryCategory::ensureDefaults();
+
+        $response = $this->actingAs($admin)->getJson(route('inventory.categories.index'));
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data' => [
+                '*' => ['id', 'name', 'is_active', 'usage_count', 'can_delete'],
+            ],
+        ]);
+        $this->assertTrue($response->json('success'));
+    }
+
+    public function test_can_add_new_kategori_and_reject_duplicates(): void
+    {
+        $admin = $this->getAdmin();
+
+        $catName = 'TestKategori_' . uniqid();
+
+        $response = $this->actingAs($admin)->postJson(route('inventory.categories.store'), [
+            'name' => $catName,
+        ]);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+        $this->assertDatabaseHas('inventory_categories', [
+            'name' => $catName,
+            'is_active' => true,
+        ]);
+
+        // Attempt duplicate (case-insensitive & trimmed)
+        $dupResponse = $this->actingAs($admin)->postJson(route('inventory.categories.store'), [
+            'name' => '  ' . strtolower($catName) . '  ',
+        ]);
+        $dupResponse->assertStatus(422);
+        $dupResponse->assertJson(['success' => false]);
+    }
+
+    public function test_can_edit_kategori_and_cascades_to_inventory_items(): void
+    {
+        $admin = $this->getAdmin();
+
+        $oldName = 'OldKategori_' . uniqid();
+        $newName = 'NewKategori_' . uniqid();
+
+        $category = InventoryCategory::create([
+            'name' => $oldName,
+            'is_active' => true,
+        ]);
+
+        $item = InventoryItem::create([
+            'kode_barang' => 'KTG-' . rand(1000, 9999),
+            'nama_barang' => 'Item Testing Kategori',
+            'kategori' => $oldName,
+            'satuan' => 'Box',
+            'stock_warehouse' => 4,
+            'stock_hsse' => 1,
+        ]);
+
+        $response = $this->actingAs($admin)->putJson(route('inventory.categories.update', $category->id), [
+            'name' => $newName,
+        ]);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('inventory_categories', [
+            'id' => $category->id,
+            'name' => $newName,
+        ]);
+
+        $freshItem = $item->fresh();
+        $this->assertEquals($newName, $freshItem->kategori);
+        $this->assertEquals($newName, $freshItem->category);
+    }
+
+    public function test_cannot_delete_kategori_in_use_but_can_delete_unused(): void
+    {
+        $admin = $this->getAdmin();
+
+        $usedName = 'UsedKategori_' . uniqid();
+        $usedCategory = InventoryCategory::create([
+            'name' => $usedName,
+            'is_active' => true,
+        ]);
+
+        InventoryItem::create([
+            'kode_barang' => 'KTG-' . rand(1000, 9999),
+            'nama_barang' => 'Item In Use Kategori',
+            'kategori' => $usedName,
+            'satuan' => 'Box',
+            'stock_warehouse' => 3,
+            'stock_hsse' => 0,
+        ]);
+
+        $delUsed = $this->actingAs($admin)->deleteJson(route('inventory.categories.destroy', $usedCategory->id));
+        $delUsed->assertStatus(422);
+        $delUsed->assertJson([
+            'success' => false,
+            'can_deactivate' => true,
+        ]);
+        $this->assertDatabaseHas('inventory_categories', ['id' => $usedCategory->id]);
+
+        $cleanCategory = InventoryCategory::create([
+            'name' => 'CleanKategori_' . uniqid(),
+            'is_active' => true,
+        ]);
+
+        $delClean = $this->actingAs($admin)->deleteJson(route('inventory.categories.destroy', $cleanCategory->id));
+        $delClean->assertStatus(200);
+        $delClean->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('inventory_categories', ['id' => $cleanCategory->id]);
     }
 }
