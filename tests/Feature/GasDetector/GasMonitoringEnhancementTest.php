@@ -128,9 +128,111 @@ class GasMonitoringEnhancementTest extends TestCase
         $res = $this->actingAs($this->admin)->get(route('gas-detector.index'));
         $res->assertStatus(200);
         $res->assertViewHas('todayRecords', fn ($pag) => $pag->total() === 1);
-        $res->assertViewHas('historyTableRecords', fn ($pag) => $pag->total() === 2);
+        // Default Semua Riwayat filter: bulan & tahun saat ini, Well Pad pertama (Well Pad 7)
+        $res->assertViewHas('historyTableRecords', fn ($pag) => $pag->total() === 1);
         $res->assertSee('btnSectionHariIni', false);
         $res->assertSee('btnSectionSemuaRiwayat', false);
+    }
+
+    public function test_history_table_and_chart_sync_for_monthly_yearly_custom_well_pad_and_reset(): void
+    {
+        GasMonitoring::query()->delete();
+
+        // Data lintas bulan, tahun, dan Well Pad
+        GasMonitoring::create([
+            'measurement_date' => '2026-01-05',
+            'well_pad' => 'Well Pad 7',
+            'co_level' => 5.0,
+            'o2_level' => 20.5,
+            'notes' => 'JAN_WP7_A',
+        ]);
+        GasMonitoring::create([
+            'measurement_date' => '2026-01-20',
+            'well_pad' => 'Well Pad 7',
+            'co_level' => 8.0,
+            'o2_level' => 20.0,
+            'notes' => 'JAN_WP7_B',
+        ]);
+        GasMonitoring::create([
+            'measurement_date' => '2026-03-10',
+            'well_pad' => 'Well Pad 7',
+            'co_level' => 12.0,
+            'o2_level' => 20.2,
+            'notes' => 'MAR_WP7',
+        ]);
+        GasMonitoring::create([
+            'measurement_date' => '2026-01-15',
+            'well_pad' => 'Well Pad 9',
+            'co_level' => 19.0,
+            'o2_level' => 19.8,
+            'notes' => 'JAN_WP9',
+        ]);
+        GasMonitoring::create([
+            'measurement_date' => '2025-06-15',
+            'well_pad' => 'Well Pad 7',
+            'co_level' => 4.0,
+            'o2_level' => 21.0,
+            'notes' => 'Y2025_WP7',
+        ]);
+
+        // 1. Bulanan (Januari 2026, Well Pad 7 -> 2 baris, bukan Well Pad 9 atau Maret 2026 atau 2025)
+        $resMonthly = $this->actingAs($this->admin)->getJson(route('gas-detector.history-chart', [
+            'history_period_type' => 'monthly',
+            'history_month' => 1,
+            'history_year' => 2026,
+            'history_well_pad' => 'Well Pad 7',
+        ]));
+        $resMonthly->assertStatus(200);
+        $this->assertEquals(2, $resMonthly->json('tableTotal'));
+        $this->assertStringContainsString('05/01/2026', $resMonthly->json('tableHtml'));
+        $this->assertStringContainsString('20/01/2026', $resMonthly->json('tableHtml'));
+        $this->assertStringNotContainsString('10/03/2026', $resMonthly->json('tableHtml'));
+        $this->assertStringNotContainsString('15/01/2026', $resMonthly->json('tableHtml'));
+
+        // 2. Tahunan (2026, Well Pad 7 -> semua 3 catatan tahun 2026 di tabel, sementara grafik tetap worst per bulan)
+        $resYearly = $this->actingAs($this->admin)->getJson(route('gas-detector.history-chart', [
+            'history_period_type' => 'yearly',
+            'history_year' => 2026,
+            'history_well_pad' => 'Well Pad 7',
+        ]));
+        $resYearly->assertStatus(200);
+        $this->assertEquals(3, $resYearly->json('tableTotal'));
+        $this->assertEquals(8, $resYearly->json('chartData.co.data.0'));
+        $this->assertEquals(12, $resYearly->json('chartData.co.data.2'));
+        $this->assertStringNotContainsString('15/06/2025', $resYearly->json('tableHtml'));
+
+        // 3. Rentang Tanggal inklusif (2026-01-05 s.d. 2026-01-20, Well Pad 7 -> 2 baris)
+        $resCustom = $this->actingAs($this->admin)->getJson(route('gas-detector.history-chart', [
+            'history_period_type' => 'custom',
+            'history_start_date' => '2026-01-05',
+            'history_end_date' => '2026-01-20',
+            'history_well_pad' => 'Well Pad 7',
+        ]));
+        $resCustom->assertStatus(200);
+        $this->assertEquals(2, $resCustom->json('tableTotal'));
+        $this->assertStringContainsString('05/01/2026', $resCustom->json('tableHtml'));
+        $this->assertStringContainsString('20/01/2026', $resCustom->json('tableHtml'));
+
+        // 4. Filter Well Pad berbeda (Januari 2026, Well Pad 9 -> 1 baris)
+        $resWp9 = $this->actingAs($this->admin)->getJson(route('gas-detector.history-chart', [
+            'history_period_type' => 'monthly',
+            'history_month' => 1,
+            'history_year' => 2026,
+            'history_well_pad' => 'Well Pad 9',
+        ]));
+        $resWp9->assertStatus(200);
+        $this->assertEquals(1, $resWp9->json('tableTotal'));
+        $this->assertStringContainsString('Well Pad 9', $resWp9->json('tableHtml'));
+
+        // 5. Full GET request dengan section=semua_riwayat juga menyinkronkan historyTableRecords
+        $resPage = $this->actingAs($this->admin)->get(route('gas-detector.index', [
+            'section' => 'semua_riwayat',
+            'history_period_type' => 'yearly',
+            'history_year' => 2026,
+            'history_well_pad' => 'Well Pad 7',
+        ]));
+        $resPage->assertStatus(200);
+        $resPage->assertViewHas('historyTableRecords', fn ($pag) => $pag->total() === 3);
     }
 
     public function test_yearly_history_chart_uses_worst_measurement_per_month_and_null_for_empty_months(): void

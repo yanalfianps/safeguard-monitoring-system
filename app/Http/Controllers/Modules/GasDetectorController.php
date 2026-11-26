@@ -136,29 +136,26 @@ class GasDetectorController extends Controller
             ->paginate(15, ['*'], 'today_page')
             ->withQueryString();
 
-        // 4. SECTION SEMUA RIWAYAT (Tabel menampilkan seluruh riwayat tanpa terpengaruh filter grafik)
-        $searchHistory = trim((string) $request->input('search_history', ''));
-        $historyTableQuery = GasMonitoring::query()->with('wellPad');
-        if ($searchHistory !== '') {
-            $historyTableQuery->where(function (Builder $q) use ($searchHistory) {
-                $q->where('well_pad', 'like', "%{$searchHistory}%")
-                  ->orWhere('notes', 'like', "%{$searchHistory}%")
-                  ->orWhere('recorded_by', 'like', "%{$searchHistory}%")
-                  ->orWhere('measurement_date', 'like', "%{$searchHistory}%");
-            });
-        }
-        $historyTableRecords = $historyTableQuery
-            ->orderBy('measurement_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->paginate(15, ['*'], 'history_page')
-            ->withQueryString();
-
-        // Filter & Grafik Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad)
+        // 4. SECTION SEMUA RIWAYAT (Tabel & Grafik menggunakan filter periode + Well Pad yang sama)
         $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr);
         $historyChartResult = $this->buildHistoryChartAndStatistics($historyFilter);
         $historyChartData = $historyChartResult['chartData'];
         $historyStatisticsData = $historyChartResult['statisticsData'];
         $historyPeriodLabel = $historyFilter['formatted_label'];
+
+        $searchHistory = trim((string) $request->input('search_history', ''));
+        $historyTableRecords = $this->buildHistoryTableQuery($historyFilter, $searchHistory)
+            ->paginate(15, ['*'], 'history_page')
+            ->appends([
+                'section' => 'semua_riwayat',
+                'history_period_type' => $historyFilter['period_type'],
+                'history_month' => $historyFilter['month'],
+                'history_year' => $historyFilter['year'],
+                'history_start_date' => $historyFilter['start_date'],
+                'history_end_date' => $historyFilter['end_date'],
+                'history_well_pad' => $historyFilter['well_pad'],
+                'search_history' => $searchHistory !== '' ? $searchHistory : null,
+            ]);
 
         // Daftar tahun tersedia untuk dropdown tahun
         $dbYears = GasMonitoring::selectRaw('DISTINCT YEAR(measurement_date) as yr')
@@ -402,6 +399,25 @@ class GasDetectorController extends Controller
         $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr);
         $result = $this->buildHistoryChartAndStatistics($historyFilter);
 
+        $searchHistory = trim((string) $request->input('search_history', ''));
+        $historyTableRecords = $this->buildHistoryTableQuery($historyFilter, $searchHistory)
+            ->paginate(15, ['*'], 'history_page')
+            ->withPath(route('gas-detector.index'))
+            ->appends([
+                'section' => 'semua_riwayat',
+                'history_period_type' => $historyFilter['period_type'],
+                'history_month' => $historyFilter['month'],
+                'history_year' => $historyFilter['year'],
+                'history_start_date' => $historyFilter['start_date'],
+                'history_end_date' => $historyFilter['end_date'],
+                'history_well_pad' => $historyFilter['well_pad'],
+                'search_history' => $searchHistory !== '' ? $searchHistory : null,
+            ]);
+
+        $tableHtml = view('gas-detector.partials.history-table-content', [
+            'historyTableRecords' => $historyTableRecords,
+        ])->render();
+
         return response()->json([
             'success' => true,
             'filter' => $historyFilter,
@@ -409,7 +425,33 @@ class GasDetectorController extends Controller
             'wellPadName' => $historyFilter['well_pad'],
             'chartData' => $result['chartData'],
             'statisticsData' => $result['statisticsData'],
+            'tableHtml' => $tableHtml,
+            'tableTotal' => $historyTableRecords->total(),
         ]);
+    }
+
+    /**
+     * Query builder untuk tabel Semua Riwayat agar 100% sinkron dengan filter grafik (Periode & Well Pad).
+     */
+    protected function buildHistoryTableQuery(array $historyFilter, string $searchHistory = ''): Builder
+    {
+        $query = GasMonitoring::query()
+            ->with('wellPad')
+            ->where('well_pad', $historyFilter['well_pad'])
+            ->whereDate('measurement_date', '>=', $historyFilter['start_date'])
+            ->whereDate('measurement_date', '<=', $historyFilter['end_date']);
+
+        if ($searchHistory !== '') {
+            $query->where(function (Builder $q) use ($searchHistory) {
+                $q->where('well_pad', 'like', "%{$searchHistory}%")
+                    ->orWhere('notes', 'like', "%{$searchHistory}%")
+                    ->orWhere('recorded_by', 'like', "%{$searchHistory}%")
+                    ->orWhere('measurement_date', 'like', "%{$searchHistory}%");
+            });
+        }
+
+        return $query->orderBy('measurement_date', 'desc')
+            ->orderBy('id', 'desc');
     }
 
     /**
@@ -435,7 +477,10 @@ class GasDetectorController extends Controller
             $month = $todayObj->month;
         }
 
-        $year = (int) $request->input('history_year', $request->input('year', $todayObj->year));
+        $rawYear = $periodType === 'yearly'
+            ? $request->input('history_year', $request->input('history_year_only', $request->input('year', $todayObj->year)))
+            : $request->input('history_year', $request->input('year', $todayObj->year));
+        $year = (int) $rawYear;
         if ($year < 2000 || $year > 2099) {
             $year = $todayObj->year;
         }
