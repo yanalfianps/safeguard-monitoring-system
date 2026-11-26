@@ -9,6 +9,7 @@ use App\Models\GasMonitoring;
 use App\Models\WellPad;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -82,82 +83,120 @@ class GasDetectorController extends Controller
         }
         $activeWellPads = WellPad::sortNaturally($activeWellPads);
 
-        // Resolve period filter (supports 6 period modes + legacy month/year params)
-        $periodResolved = $this->resolvePeriodFilter($request);
-        $periodType = $periodResolved['period_type'];
-        $startDate = $periodResolved['start_date'];
-        $endDate = $periodResolved['end_date'];
-        $formattedPeriodLabel = $periodResolved['formatted_label'];
-        $headerDayName = $periodResolved['header_day_name'] ?? 'Hari Ini';
-        $headerDateLabel = $periodResolved['header_date_label'] ?? $formattedPeriodLabel;
-        $isLatestAvailable = $periodResolved['is_latest_available'];
+        $todayStr = Carbon::now('Asia/Jakarta')->format('Y-m-d');
+        $todayDisplayLabel = Carbon::parse($todayStr)->locale('id')->isoFormat('D MMMM Y');
 
-        $rawWellPad = $request->input('well_pad', 'all');
-        if (is_array($rawWellPad)) {
-            $selectedWellPads = array_values(array_filter($rawWellPad, fn ($v) => !empty($v) && $v !== 'all'));
-            $wellPadFilter = empty($selectedWellPads) ? 'all' : $selectedWellPads;
-        } else {
-            $strWp = trim((string) $rawWellPad);
-            $selectedWellPads = ($strWp !== '' && $strWp !== 'all') ? [$strWp] : [];
-            $wellPadFilter = ($strWp !== '' && $strWp !== 'all') ? $strWp : 'all';
+        // 1. 5 Kartu Indikator Paling Atas: Statis terhadap seluruh filter bawah.
+        // Selalu mengambil data dari tanggal pengukuran terbaru yang tersedia di database.
+        $latestSummary = GasMonitoring::getLatestDailySummary($todayStr);
+        $summaryCards = $latestSummary['cards'];
+        $lastInputTimeFormatted = $latestSummary['last_input_time_formatted'];
+        $latestDateStr = $latestSummary['latest_date'] ?? $todayStr;
+        $latestDateObj = Carbon::parse($latestDateStr)->locale('id');
+        $headerDayName = $latestDateObj->isoFormat('dddd');
+        $headerDateLabel = $latestDateObj->isoFormat('D MMMM Y');
+        $isLatestAvailable = true;
+
+        // 2. Active Section ('hari_ini' default | 'semua_riwayat')
+        $activeSection = (string) $request->input('section', '');
+        if ($activeSection === '') {
+            $activeSection = $request->has('history_page') ? 'semua_riwayat' : 'hari_ini';
         }
-        $parameterFilter = (string) $request->input('indicator', 'all');
-        $searchQuery = trim((string) $request->input('search', ''));
-
-        // Latest input timestamp
-        $latestRecord = GasMonitoring::orderBy('updated_at', 'desc')->orderBy('id', 'desc')->first();
-        $lastInputTimeFormatted = $latestRecord && $latestRecord->updated_at
-            ? $latestRecord->updated_at->setTimezone('Asia/Jakarta')->translatedFormat('d M Y, H:i') . ' WIB'
-            : 'Belum ada input';
-
-        // Build base query for GasMonitoring
-        $monitoringQuery = GasMonitoring::query()->with('wellPad');
-        $this->applyPeriodToQuery($monitoringQuery, $periodType, $startDate, $endDate);
-        $monitoringQuery->byWellPad($wellPadFilter);
-
-        if ($searchQuery !== '') {
-            $monitoringQuery->where(function (Builder $q) use ($searchQuery) {
-                $q->where('well_pad', 'like', "%{$searchQuery}%")
-                  ->orWhere('notes', 'like', "%{$searchQuery}%")
-                  ->orWhere('recorded_by', 'like', "%{$searchQuery}%")
-                  ->orWhere('measurement_date', 'like', "%{$searchQuery}%");
-            });
+        if (!in_array($activeSection, ['hari_ini', 'semua_riwayat'], true)) {
+            $activeSection = 'hari_ini';
         }
 
-        $allFilteredMonitoring = (clone $monitoringQuery)
-            ->orderBy('measurement_date', 'desc')
+        // 3. SECTION HARI INI (Grafik & Tabel khusus tanggal hari ini, tanpa filter periode/Well Pad)
+        $searchToday = trim((string) $request->input('search_today', $request->input('search', '')));
+        $todayAllRecords = GasMonitoring::query()
+            ->with('wellPad')
+            ->whereDate('measurement_date', $todayStr)
             ->orderBy('id', 'desc')
             ->get();
 
-        $tableRecords = (clone $monitoringQuery)
-            ->orderBy('measurement_date', 'desc')
+        $todayChartAndStats = $this->buildBarChartAndStatistics($todayAllRecords, $activeWellPads, 'all');
+        $chartData = $todayChartAndStats['chartData'];
+        $statisticsData = $todayChartAndStats['statisticsData'];
+
+        $todayTableQuery = GasMonitoring::query()
+            ->with('wellPad')
+            ->whereDate('measurement_date', $todayStr);
+
+        if ($searchToday !== '') {
+            $todayTableQuery->where(function (Builder $q) use ($searchToday) {
+                $q->where('well_pad', 'like', "%{$searchToday}%")
+                  ->orWhere('notes', 'like', "%{$searchToday}%")
+                  ->orWhere('recorded_by', 'like', "%{$searchToday}%")
+                  ->orWhere('measurement_date', 'like', "%{$searchToday}%");
+            });
+        }
+
+        $todayRecords = $todayTableQuery
             ->orderBy('id', 'desc')
-            ->paginate(15)
+            ->paginate(15, ['*'], 'today_page')
             ->withQueryString();
 
-        // 5 Parameter Summary Cards
-        $summaryCards = $this->buildSummaryCards($allFilteredMonitoring);
+        // 4. SECTION SEMUA RIWAYAT (Tabel menampilkan seluruh riwayat tanpa terpengaruh filter grafik)
+        $searchHistory = trim((string) $request->input('search_history', ''));
+        $historyTableQuery = GasMonitoring::query()->with('wellPad');
+        if ($searchHistory !== '') {
+            $historyTableQuery->where(function (Builder $q) use ($searchHistory) {
+                $q->where('well_pad', 'like', "%{$searchHistory}%")
+                  ->orWhere('notes', 'like', "%{$searchHistory}%")
+                  ->orWhere('recorded_by', 'like', "%{$searchHistory}%")
+                  ->orWhere('measurement_date', 'like', "%{$searchHistory}%");
+            });
+        }
+        $historyTableRecords = $historyTableQuery
+            ->orderBy('measurement_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->paginate(15, ['*'], 'history_page')
+            ->withQueryString();
 
-        // Bar Chart & Statistics Data for 5 Parameters
-        $chartAndStats = $this->buildBarChartAndStatistics($allFilteredMonitoring, $activeWellPads, $wellPadFilter);
-        $chartData = $chartAndStats['chartData'];
-        $statisticsData = $chartAndStats['statisticsData'];
+        // Filter & Grafik Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad)
+        $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr);
+        $historyChartResult = $this->buildHistoryChartAndStatistics($historyFilter);
+        $historyChartData = $historyChartResult['chartData'];
+        $historyStatisticsData = $historyChartResult['statisticsData'];
+        $historyPeriodLabel = $historyFilter['formatted_label'];
+
+        // Daftar tahun tersedia untuk dropdown tahun
+        $dbYears = GasMonitoring::selectRaw('DISTINCT YEAR(measurement_date) as yr')
+            ->whereNotNull('measurement_date')
+            ->pluck('yr')
+            ->map(fn ($y) => (int) $y)
+            ->filter()
+            ->all();
+        $currentYearInt = (int) Carbon::now('Asia/Jakarta')->year;
+        $availableYears = array_values(array_unique(array_merge([$currentYearInt], $dbYears)));
+        rsort($availableYears);
+
+        // Variabel kompatibilitas untuk komponen/test lama
+        $periodType = $historyFilter['period_type'];
+        $startDate = $historyFilter['start_date'];
+        $endDate = $historyFilter['end_date'];
+        $formattedPeriodLabel = $todayDisplayLabel;
+        $wellPadFilter = $historyFilter['well_pad'];
+        $selectedWellPads = $wellPadFilter !== '' ? [$wellPadFilter] : [];
+        $parameterFilter = (string) $request->input('indicator', 'all');
+        $searchQuery = $searchToday;
+        $tableRecords = $todayRecords;
 
         // Legacy variables for backward compatibility with tests/components
-        $month = (int) $request->input('month', $startDate ? Carbon::parse($startDate)->month : date('n'));
-        $year = (int) $request->input('year', $startDate ? Carbon::parse($startDate)->year : date('Y'));
+        $month = (int) $historyFilter['month'];
+        $year = (int) $historyFilter['year'];
         $currentDate = Carbon::create($year, $month, 1);
         $prevDate = (clone $currentDate)->subMonth();
         $nextDate = (clone $currentDate)->addMonth();
         $monthNames = self::MONTH_NAMES;
         $currentMonthName = ($monthNames[$month] ?? 'Bulan') . ' ' . $year;
         $nabConfig = self::NAB_CONFIG;
-        $records = $tableRecords;
-        $highestCo = $allFilteredMonitoring->sortByDesc('co_level')->first();
-        $highestH2s = $allFilteredMonitoring->sortByDesc('h2s_level')->first();
-        $highestPressure = $allFilteredMonitoring->sortByDesc('pressure')->first();
-        $totalDataInMonth = $allFilteredMonitoring->count();
-        $rekapPerWellPad = $this->buildRekapPerWellPad($allFilteredMonitoring, $activeWellPads);
+        $records = $todayRecords;
+        $highestCo = $todayAllRecords->sortByDesc('co_level')->first();
+        $highestH2s = $todayAllRecords->sortByDesc('h2s_level')->first();
+        $highestPressure = $todayAllRecords->sortByDesc('pressure')->first();
+        $totalDataInMonth = $todayAllRecords->count();
+        $rekapPerWellPad = $this->buildRekapPerWellPad($todayAllRecords, $activeWellPads);
 
         // ---------------------------------------------------------
         // B. BAGIAN 2: INVENTARIS PERANGKAT GASDETEKTOR
@@ -275,10 +314,12 @@ class GasDetectorController extends Controller
         return view('gas-detector.index', compact(
             // New Gas Monitoring Reference Variables
             'formattedPeriodLabel',
+            'todayDisplayLabel',
             'headerDayName',
             'headerDateLabel',
             'isLatestAvailable',
             'lastInputTimeFormatted',
+            'activeSection',
             'periodType',
             'startDate',
             'endDate',
@@ -290,7 +331,16 @@ class GasDetectorController extends Controller
             'chartData',
             'statisticsData',
             'tableRecords',
+            'todayRecords',
+            'historyTableRecords',
+            'historyChartData',
+            'historyStatisticsData',
+            'historyPeriodLabel',
+            'historyFilter',
+            'availableYears',
             'searchQuery',
+            'searchToday',
+            'searchHistory',
 
             // Legacy / Backward-Compatible Variables
             'currentMonthName',
@@ -317,6 +367,310 @@ class GasDetectorController extends Controller
             'gasTypes',
             'statuses'
         ));
+    }
+
+    /**
+     * Endpoint JSON untuk grafik Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad).
+     */
+    public function historyChartData(Request $request): JsonResponse
+    {
+        $activeWellPads = WellPad::active()->get();
+        if ($activeWellPads->isEmpty()) {
+            $activeWellPads = WellPad::ordered()->get();
+        }
+        $activeWellPads = WellPad::sortNaturally($activeWellPads);
+
+        $todayStr = Carbon::now('Asia/Jakarta')->format('Y-m-d');
+        $periodType = (string) $request->input('history_period_type', $request->input('period_type', 'monthly'));
+        if ($periodType === 'custom') {
+            $s = $request->input('history_start_date', $request->input('start_date'));
+            $e = $request->input('history_end_date', $request->input('end_date'));
+            if (empty($s) || empty($e)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tanggal Mulai dan Tanggal Akhir wajib diisi.',
+                ], 422);
+            }
+            if (Carbon::parse($e)->lt(Carbon::parse($s))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tanggal Mulai tidak boleh lebih besar daripada Tanggal Akhir.',
+                ], 422);
+            }
+        }
+
+        $historyFilter = $this->resolveHistoryChartFilter($request, $activeWellPads, $todayStr);
+        $result = $this->buildHistoryChartAndStatistics($historyFilter);
+
+        return response()->json([
+            'success' => true,
+            'filter' => $historyFilter,
+            'periodLabel' => $historyFilter['formatted_label'],
+            'wellPadName' => $historyFilter['well_pad'],
+            'chartData' => $result['chartData'],
+            'statisticsData' => $result['statisticsData'],
+        ]);
+    }
+
+    /**
+     * Resolve filter grafik untuk section Semua Riwayat (Bulanan / Tahunan / Rentang Tanggal + 1 Well Pad).
+     */
+    protected function resolveHistoryChartFilter(Request $request, Collection $activeWellPads, string $todayStr): array
+    {
+        $todayObj = Carbon::parse($todayStr)->locale('id');
+        $defaultPad = $activeWellPads->first()?->name ?? (self::WELL_PADS[0] ?? 'Well Pad 7');
+
+        $wellPad = trim((string) $request->input('history_well_pad', $request->input('well_pad', '')));
+        if ($wellPad === '' || $wellPad === 'all') {
+            $wellPad = $defaultPad;
+        }
+
+        $periodType = (string) $request->input('history_period_type', $request->input('period_type', 'monthly'));
+        if (!in_array($periodType, ['monthly', 'yearly', 'custom'], true)) {
+            $periodType = 'monthly';
+        }
+
+        $month = (int) $request->input('history_month', $request->input('month', $todayObj->month));
+        if ($month < 1 || $month > 12) {
+            $month = $todayObj->month;
+        }
+
+        $year = (int) $request->input('history_year', $request->input('year', $todayObj->year));
+        if ($year < 2000 || $year > 2099) {
+            $year = $todayObj->year;
+        }
+
+        if ($periodType === 'yearly') {
+            $start = Carbon::create($year, 1, 1)->startOfYear();
+            $end = (clone $start)->endOfYear();
+            $label = 'Tahun ' . $year;
+        } elseif ($periodType === 'custom') {
+            $rawStart = $request->input('history_start_date', $request->input('start_date', Carbon::parse($todayStr)->startOfMonth()->format('Y-m-d')));
+            $rawEnd = $request->input('history_end_date', $request->input('end_date', $todayStr));
+            $start = Carbon::parse($rawStart)->locale('id');
+            $end = Carbon::parse($rawEnd)->locale('id');
+            if ($end->lt($start)) {
+                [$start, $end] = [$end, $start];
+            }
+            $label = $start->isoFormat('D MMM Y') . ' – ' . $end->isoFormat('D MMM Y');
+        } else {
+            $periodType = 'monthly';
+            $start = Carbon::create($year, $month, 1)->startOfMonth();
+            $end = (clone $start)->endOfMonth();
+            $label = (self::MONTH_NAMES[$month] ?? 'Bulan') . ' ' . $year;
+        }
+
+        return [
+            'period_type' => $periodType,
+            'month' => $month,
+            'year' => $year,
+            'start_date' => $start->format('Y-m-d'),
+            'end_date' => $end->format('Y-m-d'),
+            'well_pad' => $wellPad,
+            'formatted_label' => $label,
+        ];
+    }
+
+    /**
+     * Bangun data grafik & statistik khusus section Semua Riwayat (1 Well Pad dalam satu waktu).
+     * - Bulanan: tanggal 1..akhir bulan (worst measurement jika ada >1 pengukuran pada tanggal yang sama, null jika kosong)
+     * - Tahunan: Jan..Des (worst measurement per bulan + tanggal terjadinya pada tooltip, null jika kosong)
+     * - Rentang Tanggal: per tanggal dalam rentang (worst measurement per tanggal, null jika kosong)
+     */
+    protected function buildHistoryChartAndStatistics(array $filter): array
+    {
+        $periodType = $filter['period_type'];
+        $wellPad = $filter['well_pad'];
+        $startDate = $filter['start_date'];
+        $endDate = $filter['end_date'];
+
+        $records = GasMonitoring::query()
+            ->where('well_pad', $wellPad)
+            ->whereBetween('measurement_date', [$startDate, $endDate])
+            ->orderBy('measurement_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $paramConfigs = [
+            'co' => ['col' => 'co_level', 'unit' => 'ppm', 'max' => 25.0, 'warn' => 20.0, 'is_min' => false],
+            'o2' => ['col' => 'o2_level', 'unit' => '%', 'min' => 19.5, 'max' => 23.5, 'is_min' => true],
+            'h2s' => ['col' => 'h2s_level', 'unit' => 'ppm', 'max' => 10.0, 'warn' => 8.0, 'is_min' => false],
+            'lel' => ['col' => 'lel_level', 'unit' => '%', 'max' => 5.0, 'warn' => 4.0, 'is_min' => false],
+            'pressure' => ['col' => 'pressure', 'unit' => 'Psi', 'max' => null, 'warn' => null, 'is_min' => false],
+        ];
+
+        $labels = [];
+        $buckets = [];
+
+        if ($periodType === 'yearly') {
+            $monthShortNames = [
+                1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr',
+                5 => 'Mei', 6 => 'Jun', 7 => 'Jul', 8 => 'Agu',
+                9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
+            ];
+            $grouped = $records->groupBy(fn ($r) => (int) Carbon::parse($r->measurement_date)->month);
+            for ($m = 1; $m <= 12; $m++) {
+                $labels[] = $monthShortNames[$m];
+                $buckets[] = [
+                    'records' => $grouped->get($m, collect()),
+                    'default_date' => null,
+                ];
+            }
+        } elseif ($periodType === 'monthly') {
+            $grouped = $records->groupBy(fn ($r) => Carbon::parse($r->measurement_date)->format('Y-m-d'));
+            $daysInMonth = Carbon::create($filter['year'], $filter['month'], 1)->daysInMonth;
+            for ($d = 1; $d <= $daysInMonth; $d++) {
+                $dateKey = sprintf('%04d-%02d-%02d', $filter['year'], $filter['month'], $d);
+                $labels[] = (string) $d;
+                $buckets[] = [
+                    'records' => $grouped->get($dateKey, collect()),
+                    'default_date' => Carbon::parse($dateKey)->locale('id')->isoFormat('D MMM Y'),
+                ];
+            }
+        } else {
+            $grouped = $records->groupBy(fn ($r) => Carbon::parse($r->measurement_date)->format('Y-m-d'));
+            $period = CarbonPeriod::create($startDate, $endDate);
+            foreach ($period as $dt) {
+                $dateKey = $dt->format('Y-m-d');
+                $labels[] = $dt->locale('id')->isoFormat('D MMM');
+                $buckets[] = [
+                    'records' => $grouped->get($dateKey, collect()),
+                    'default_date' => $dt->locale('id')->isoFormat('D MMM Y'),
+                ];
+            }
+        }
+
+        $chartData = [
+            'labels' => $labels,
+            'well_pad' => $wellPad,
+            'period_type' => $periodType,
+        ];
+        $statisticsData = [];
+
+        foreach ($paramConfigs as $key => $cfg) {
+            $col = $cfg['col'];
+            $isMin = $cfg['is_min'];
+            $dataArr = [];
+            $colorsArr = [];
+            $datesArr = [];
+            $validPoints = [];
+
+            foreach ($buckets as $idx => $bucket) {
+                $worst = $this->pickWorstRecord($bucket['records'], $col, $isMin);
+                if ($worst === null) {
+                    $dataArr[] = null;
+                    $colorsArr[] = '#cbd5e1';
+                    $datesArr[] = $bucket['default_date'];
+                    continue;
+                }
+
+                $val = round((float) $worst->{$col}, 1);
+                $dateDisplay = $worst->measurement_date
+                    ? Carbon::parse($worst->measurement_date)->locale('id')->isoFormat('D MMM Y')
+                    : $bucket['default_date'];
+
+                $dataArr[] = $val;
+                $colorsArr[] = $this->evaluateParamColor($key, $val);
+                $datesArr[] = $dateDisplay;
+                $validPoints[] = [
+                    'val' => $val,
+                    'label' => $labels[$idx],
+                    'date' => $dateDisplay,
+                ];
+            }
+
+            $chartData[$key] = [
+                'data' => $dataArr,
+                'colors' => $colorsArr,
+                'dates' => $datesArr,
+                'unit' => $cfg['unit'],
+            ];
+
+            if (empty($validPoints)) {
+                $statisticsData[$key] = [
+                    'avg' => '-',
+                    'max_val' => '-',
+                    'max_pad' => '-',
+                    'min_val' => '-',
+                    'min_pad' => '-',
+                    'count' => 0,
+                ];
+                continue;
+            }
+
+            $vals = array_column($validPoints, 'val');
+            $avgNum = round(array_sum($vals) / count($vals), 1);
+            $avgFormatted = rtrim(rtrim(number_format($avgNum, 1, '.', ''), '0'), '.');
+
+            $maxPoint = collect($validPoints)->sortByDesc('val')->first();
+            $minPoint = collect($validPoints)->sortBy('val')->first();
+
+            $statisticsData[$key] = [
+                'avg' => $avgFormatted,
+                'max_val' => rtrim(rtrim(number_format((float) $maxPoint['val'], 1, '.', ''), '0'), '.'),
+                'max_pad' => $wellPad . (!empty($maxPoint['date']) ? ' · ' . $maxPoint['date'] : ''),
+                'min_val' => rtrim(rtrim(number_format((float) $minPoint['val'], 1, '.', ''), '0'), '.'),
+                'min_pad' => $wellPad . (!empty($minPoint['date']) ? ' · ' . $minPoint['date'] : ''),
+                'count' => count($validPoints),
+            ];
+        }
+
+        return [
+            'chartData' => $chartData,
+            'statisticsData' => $statisticsData,
+        ];
+    }
+
+    /**
+     * Ambil rekaman dengan nilai terburuk (worst measurement) untuk suatu parameter.
+     */
+    protected function pickWorstRecord(Collection $subset, string $col, bool $isMin): ?GasMonitoring
+    {
+        $valid = $subset->filter(fn ($r) => $r->{$col} !== null);
+        if ($valid->isEmpty()) {
+            return null;
+        }
+
+        $sorted = $isMin ? $valid->sortBy($col) : $valid->sortByDesc($col);
+        return $sorted->first();
+    }
+
+    /**
+     * Tentukan warna titik/batang berdasarkan NAB parameter.
+     */
+    protected function evaluateParamColor(string $key, ?float $val): string
+    {
+        if ($val === null) {
+            return '#cbd5e1';
+        }
+        if ($key === 'pressure') {
+            return '#10b981';
+        }
+        if ($key === 'o2') {
+            if ($val < GasMonitoring::NAB_O2_MIN || $val > GasMonitoring::NAB_O2_MAX) {
+                return '#ef4444';
+            }
+            if ($val < 20.0 || $val > 23.0) {
+                return '#f59e0b';
+            }
+            return '#10b981';
+        }
+        $thresholds = [
+            'co' => ['max' => GasMonitoring::NAB_CO, 'warn' => 20.0],
+            'h2s' => ['max' => GasMonitoring::NAB_H2S, 'warn' => 8.0],
+            'lel' => ['max' => GasMonitoring::NAB_LEL, 'warn' => 4.0],
+        ];
+        $cfg = $thresholds[$key] ?? null;
+        if (!$cfg) {
+            return '#10b981';
+        }
+        if ($val > $cfg['max']) {
+            return '#ef4444';
+        }
+        if ($val >= $cfg['warn']) {
+            return '#f59e0b';
+        }
+        return '#10b981';
     }
 
     /**

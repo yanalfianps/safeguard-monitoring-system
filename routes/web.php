@@ -164,6 +164,7 @@ Route::prefix('inventory')->name('inventory.')->middleware(['auth', 'active.user
 Route::prefix('gas-detector')->name('gas-detector.')->middleware(['auth', 'not.inventory'])->group(function () {
     // Read & Export (Semua Role)
     Route::get('/', [GasDetectorController::class, 'index'])->name('index');
+    Route::get('/history-chart', [GasDetectorController::class, 'historyChartData'])->name('history-chart');
     Route::get('/check-duplicate', [GasDetectorController::class, 'checkDuplicate'])->name('check-duplicate');
     Route::get('/export', [GasDetectorController::class, 'export'])->name('export')->middleware('can.export');
     Route::get('/measurements/export', [GasDetectorController::class, 'exportMeasurements'])->name('measurements.export')->middleware('can.export');
@@ -192,6 +193,7 @@ Route::prefix('gas-detector')->name('gas-detector.')->middleware(['auth', 'not.i
 // Alias routes untuk gas-monitoring
 Route::prefix('gas-monitoring')->name('gas-monitoring.')->middleware(['auth', 'not.inventory'])->group(function () {
     Route::get('/', [GasDetectorController::class, 'index'])->name('index');
+    Route::get('/history-chart', [GasDetectorController::class, 'historyChartData'])->name('history-chart');
     Route::get('/export', [GasDetectorController::class, 'exportMeasurements'])->name('export')->middleware('can.export');
 
     Route::middleware(['admin'])->group(function () {

@@ -267,7 +267,11 @@ class GasMonitoring extends Model
                 continue;
             }
 
-            $avgVal = round((float) $valid->avg($cfg['col']), 1);
+            if ($key === 'o2') {
+                $extremeVal = round((float) $valid->min($cfg['col']), 1);
+            } else {
+                $extremeVal = round((float) $valid->max($cfg['col']), 1);
+            }
 
             if ($key === 'co') {
                 $hasNonConforming = $valid->contains(fn ($r) => (float) $r->co_level > self::NAB_CO);
@@ -281,10 +285,10 @@ class GasMonitoring extends Model
                 $hasNonConforming = false;
             }
 
-            $formattedNum = rtrim(rtrim(number_format($avgVal, 1, '.', ''), '0'), '.');
+            $formattedNum = rtrim(rtrim(number_format($extremeVal, 1, '.', ''), '0'), '.');
 
             $cards[$key] = [
-                'numeric' => $avgVal,
+                'numeric' => $extremeVal,
                 'formatted' => $formattedNum,
                 'val' => $formattedNum . ' ' . $cfg['unit'],
                 'status' => $key === 'pressure' ? null : ($hasNonConforming ? 'Tidak Sesuai' : 'Sesuai'),

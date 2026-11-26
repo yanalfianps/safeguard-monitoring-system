@@ -948,7 +948,36 @@
 </div>
 
 <!-- ===========================================================================
-     4. GRAFIK BATANG PARAMETER GAS (TANPA PANEL STATISTIK)
+     3B. NAVIGASI SECTION: HARI INI VS SEMUA RIWAYAT
+     =========================================================================== -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-inline-flex p-1 bg-white border rounded-3 shadow-sm" role="tablist" aria-label="Section Gas Monitoring">
+        <button type="button"
+                id="btnSectionHariIni"
+                class="btn btn-sm px-3 fw-semibold rounded-2 {{ ($activeSection ?? 'hari_ini') === 'hari_ini' ? 'btn-success text-white' : 'btn-light text-secondary border-0' }}"
+                onclick="switchGasSection('hari_ini')"
+                style="{{ ($activeSection ?? 'hari_ini') === 'hari_ini' ? 'background-color: #059669; border-color: #059669;' : '' }}">
+            <i class="bi bi-calendar-check me-1"></i> Hari Ini
+        </button>
+        <button type="button"
+                id="btnSectionSemuaRiwayat"
+                class="btn btn-sm px-3 fw-semibold rounded-2 {{ ($activeSection ?? 'hari_ini') === 'semua_riwayat' ? 'btn-success text-white' : 'btn-light text-secondary border-0' }}"
+                onclick="switchGasSection('semua_riwayat')"
+                style="{{ ($activeSection ?? 'hari_ini') === 'semua_riwayat' ? 'background-color: #059669; border-color: #059669;' : '' }}">
+            <i class="bi bi-clock-history me-1"></i> Semua Riwayat
+        </button>
+    </div>
+    <div class="small text-muted" id="sectionModeHint">
+        @if(($activeSection ?? 'hari_ini') === 'semua_riwayat')
+            <i class="bi bi-graph-up me-1 text-success"></i> Analisis riwayat per Well Pad &amp; seluruh catatan pengukuran
+        @else
+            <i class="bi bi-activity me-1 text-success"></i> Pemantauan pengukuran hari ini ({{ $todayDisplayLabel }})
+        @endif
+    </div>
+</div>
+
+<!-- ===========================================================================
+     4. GRAFIK PARAMETER GAS (TANPA PANEL STATISTIK)
      =========================================================================== -->
 <div class="row g-3 mb-4">
     <div class="col-12">
@@ -1039,160 +1068,125 @@
 </div>
 
 <!-- ===========================================================================
-     5. FILTER PERIODE DARI TANGGAL AWAL SAMPAI TANGGAL AKHIR (DI BAWAH GRAFIK, DI ATAS TABEL)
+     5. FILTER GRAFIK SEMUA RIWAYAT (HANYA MUNCUL SAAT SECTION SEMUA RIWAYAT AKTIF)
      =========================================================================== -->
-<form method="GET" action="{{ route('gas-detector.index') }}" id="gasFilterForm" onsubmit="return validateDateRange()">
-    <div class="gas-filter-panel">
-        <div class="gas-filter-grid">
-            <!-- Pilihan Tipe Periode -->
-            <div class="filter-col-period-type">
-                <label class="filter-input-label">
-                    <i class="bi bi-funnel text-success"></i> Tipe Periode
-                </label>
-                <select name="period_type" id="filterPeriodType" class="form-select form-select-sm" onchange="toggleGasPeriodMode(this.value)">
-                    <option value="all" {{ ($periodType ?? 'daily') === 'all' ? 'selected' : '' }}>Semua Periode</option>
-                    <option value="daily" {{ ($periodType ?? 'daily') === 'daily' ? 'selected' : '' }}>Harian</option>
-                    <option value="weekly" {{ ($periodType ?? 'daily') === 'weekly' ? 'selected' : '' }}>Mingguan</option>
-                    <option value="monthly" {{ ($periodType ?? 'daily') === 'monthly' ? 'selected' : '' }}>Bulanan</option>
-                    <option value="yearly" {{ ($periodType ?? 'daily') === 'yearly' ? 'selected' : '' }}>Tahunan</option>
-                    <option value="custom" {{ ($periodType ?? 'daily') === 'custom' ? 'selected' : '' }}>Rentang Tanggal</option>
-                </select>
-            </div>
-
-            <!-- Input Dinamis Sesuai Tipe Periode -->
-            <div id="gasPeriodInputWrapper" class="filter-col-period-input" style="{{ ($periodType ?? 'daily') === 'all' ? 'display: none;' : '' }}">
-                <!-- 1. Harian -->
-                <div id="gasPeriod_daily" class="gas-period-variant" style="{{ ($periodType ?? 'daily') === 'daily' ? '' : 'display: none;' }}">
+<div id="gasHistoryFilterWrapper" class="{{ ($activeSection ?? 'hari_ini') === 'semua_riwayat' ? '' : 'd-none' }}">
+    <form method="GET" action="{{ route('gas-detector.index') }}" id="gasHistoryFilterForm" onsubmit="return applyHistoryChartFilter(event)">
+        <input type="hidden" name="section" value="semua_riwayat">
+        <div class="gas-filter-panel">
+            <div class="gas-filter-grid">
+                <!-- Pilihan Tipe Periode (Bulanan, Tahunan, Rentang Tanggal) -->
+                <div class="filter-col-period-type">
                     <label class="filter-input-label">
-                        <i class="bi bi-calendar-event text-success"></i> Pilih Tanggal
+                        <i class="bi bi-funnel text-success"></i> Tipe Periode
                     </label>
-                    <input type="date" name="filter_date" id="filterDateDaily" class="form-control form-control-sm" value="{{ request('filter_date', $startDate ?: date('Y-m-d')) }}">
+                    <select name="history_period_type" id="filterHistoryPeriodType" class="form-select form-select-sm" onchange="toggleHistoryPeriodMode(this.value)">
+                        <option value="monthly" {{ ($historyFilter['period_type'] ?? 'monthly') === 'monthly' ? 'selected' : '' }}>Bulanan</option>
+                        <option value="yearly" {{ ($historyFilter['period_type'] ?? 'monthly') === 'yearly' ? 'selected' : '' }}>Tahunan</option>
+                        <option value="custom" {{ ($historyFilter['period_type'] ?? 'monthly') === 'custom' ? 'selected' : '' }}>Rentang Tanggal</option>
+                    </select>
                 </div>
 
-                <!-- 2. Mingguan (Pilih Tanggal dalam Minggu + Rentang Seminggu) -->
-                <div id="gasPeriod_weekly" class="gas-period-variant filter-dynamic-controls" style="{{ ($periodType ?? 'daily') === 'weekly' ? 'display: flex;' : 'display: none;' }}">
-                    <div class="filter-dynamic-subcol">
-                        <label class="filter-input-label">Pilih Tanggal dalam Minggu</label>
-                        <div class="filter-date-input-wrap">
-                            <i class="bi bi-calendar-week"></i>
-                            <input type="date" name="filter_week_date" id="filterDateWeekly" class="form-control form-control-sm" value="{{ request('filter_week_date', $startDate ?: date('Y-m-d')) }}" onchange="onGasWeeklyDatePick(this.value)">
+                <!-- Input Dinamis Sesuai Tipe Periode -->
+                <div id="gasHistoryPeriodInputWrapper" class="filter-col-period-input">
+                    <!-- 1. Bulanan (Dropdown Bulan & Dropdown Tahun) -->
+                    <div id="gasHistoryPeriod_monthly" class="gas-period-variant filter-dynamic-controls" style="{{ ($historyFilter['period_type'] ?? 'monthly') === 'monthly' ? 'display: flex;' : 'display: none;' }}">
+                        <div class="filter-dynamic-subcol">
+                            <label class="filter-input-label"><i class="bi bi-calendar-event text-success"></i> Bulan</label>
+                            <select name="history_month" id="filterHistoryMonth" class="form-select form-select-sm">
+                                @foreach($monthNames as $mNum => $mLabel)
+                                    <option value="{{ $mNum }}" {{ (int)($historyFilter['month'] ?? date('n')) === (int)$mNum ? 'selected' : '' }}>{{ $mLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="filter-dynamic-subcol">
+                            <label class="filter-input-label">Tahun</label>
+                            <select name="history_year" id="filterHistoryYear" class="form-select form-select-sm">
+                                @foreach($availableYears as $yrOpt)
+                                    <option value="{{ $yrOpt }}" {{ (int)($historyFilter['year'] ?? date('Y')) === (int)$yrOpt ? 'selected' : '' }}>{{ $yrOpt }}</option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
-                    <div class="filter-dynamic-subcol">
-                        <label class="filter-input-label">Rentang Seminggu</label>
-                        <input type="text" id="filterGasWeeklyDisplay" class="form-control form-control-sm fw-semibold" readonly style="background-color: #f8fafc; color: #059669;" placeholder="Pilih tanggal di sebelah">
-                    </div>
-                </div>
 
-                <!-- 3. Bulanan -->
-                <div id="gasPeriod_monthly" class="gas-period-variant" style="{{ ($periodType ?? 'daily') === 'monthly' ? '' : 'display: none;' }}">
-                    <label class="filter-input-label">
-                        <i class="bi bi-calendar-event text-success"></i> Pilih Bulan &amp; Tahun
-                    </label>
-                    <input type="month" name="filter_month" id="filterMonthVal" class="form-control form-control-sm" value="{{ request('filter_month', $startDate ? substr($startDate, 0, 7) : date('Y-m')) }}">
-                </div>
-
-                <!-- 4. Tahunan -->
-                <div id="gasPeriod_yearly" class="gas-period-variant" style="{{ ($periodType ?? 'daily') === 'yearly' ? '' : 'display: none;' }}">
-                    <label class="filter-input-label">
-                        <i class="bi bi-calendar-event text-success"></i> Pilih Tahun
-                    </label>
-                    <input type="number" name="filter_year" id="filterYearVal" class="form-control form-control-sm" min="2000" max="2099" step="1" value="{{ request('filter_year', $startDate ? substr($startDate, 0, 4) : date('Y')) }}">
-                </div>
-
-                <!-- 5. Rentang Tanggal -->
-                <div id="gasPeriod_custom" class="gas-period-variant" style="{{ ($periodType ?? 'daily') === 'custom' ? '' : 'display: none;' }}">
-                    <label class="filter-input-label">
-                        <i class="bi bi-calendar-event text-success"></i> Rentang Tanggal
-                    </label>
-                    <div class="date-range-split">
-                        <input type="date" name="start_date" id="filterStartDate" class="form-control form-control-sm" value="{{ $startDate }}" placeholder="Mulai" title="Tanggal Mulai">
-                        <span class="date-separator">–</span>
-                        <input type="date" name="end_date" id="filterEndDate" class="form-control form-control-sm" value="{{ $endDate }}" placeholder="Selesai" title="Tanggal Selesai">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Filter Well Pad (Multiple Choice Checkbox Dropdown) -->
-            @php
-                $selectedWpArray = isset($selectedWellPads) && is_array($selectedWellPads)
-                    ? $selectedWellPads
-                    : (is_array($wellPadFilter ?? null) ? $wellPadFilter : (($wellPadFilter ?? 'all') !== 'all' ? [$wellPadFilter] : []));
-                $isAllWpSelected = empty($selectedWpArray) || count($selectedWpArray) === $activeWellPads->count();
-                if ($isAllWpSelected) {
-                    $wpButtonLabel = 'Semua Well Pad';
-                } elseif (count($selectedWpArray) === 1) {
-                    $wpButtonLabel = $selectedWpArray[0];
-                } else {
-                    $wpButtonLabel = 'Well Pad Terpilih';
-                }
-            @endphp
-            <div class="filter-col-well-pad">
-                <label class="filter-input-label">
-                    <i class="bi bi-geo-alt text-primary"></i> Well Pad
-                </label>
-                <div class="wp-dropdown-wrap" id="wpDropdownContainer">
-                    <button type="button" class="wp-dropdown-btn" id="wpDropdownBtn" onclick="toggleWpDropdown(event)">
-                        <span id="wpDropdownText">{{ $wpButtonLabel }}</span>
-                        <i class="bi bi-chevron-down" style="font-size: 11px; color: #64748b;"></i>
-                    </button>
-                    <div class="wp-dropdown-menu" id="wpDropdownMenu">
-                        <label class="wp-check-item">
-                            <input type="checkbox" id="checkAllWellPads" {{ $isAllWpSelected ? 'checked' : '' }} onchange="toggleSelectAllWellPads(this.checked)">
-                            <strong>Semua Well Pad</strong>
+                    <!-- 2. Tahunan (Dropdown Tahun) -->
+                    <div id="gasHistoryPeriod_yearly" class="gas-period-variant" style="{{ ($historyFilter['period_type'] ?? 'monthly') === 'yearly' ? '' : 'display: none;' }}">
+                        <label class="filter-input-label">
+                            <i class="bi bi-calendar-event text-success"></i> Pilih Tahun
                         </label>
-                        <hr class="my-1 text-muted">
-                        @foreach($activeWellPads as $pad)
-                            @php
-                                $isPadChecked = $isAllWpSelected || in_array($pad->name, $selectedWpArray, true);
-                            @endphp
-                            <label class="wp-check-item">
-                                <input type="checkbox" name="well_pad[]" class="wp-checkbox" value="{{ $pad->name }}" {{ $isPadChecked ? 'checked' : '' }} onchange="onIndividualWellPadChange()">
-                                <span>{{ $pad->name }}</span>
-                            </label>
-                        @endforeach
+                        <select name="history_year_only" id="filterHistoryYearOnly" class="form-select form-select-sm">
+                            @foreach($availableYears as $yrOpt)
+                                <option value="{{ $yrOpt }}" {{ (int)($historyFilter['year'] ?? date('Y')) === (int)$yrOpt ? 'selected' : '' }}>{{ $yrOpt }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- 3. Rentang Tanggal (Tanggal Mulai & Tanggal Akhir) -->
+                    <div id="gasHistoryPeriod_custom" class="gas-period-variant" style="{{ ($historyFilter['period_type'] ?? 'monthly') === 'custom' ? '' : 'display: none;' }}">
+                        <label class="filter-input-label">
+                            <i class="bi bi-calendar-event text-success"></i> Rentang Tanggal
+                        </label>
+                        <div class="date-range-split">
+                            <input type="date" name="history_start_date" id="filterHistoryStartDate" class="form-control form-control-sm" value="{{ $historyFilter['start_date'] ?? date('Y-m-01') }}" title="Tanggal Mulai">
+                            <span class="date-separator">–</span>
+                            <input type="date" name="history_end_date" id="filterHistoryEndDate" class="form-control form-control-sm" value="{{ $historyFilter['end_date'] ?? date('Y-m-d') }}" title="Tanggal Selesai">
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Tombol Terapkan & Reset -->
-            <div class="filter-col-actions">
-                <label class="filter-input-label" style="visibility: hidden;">Aksi</label>
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-sm btn-success px-3 fw-semibold d-inline-flex align-items-center gap-1" style="background-color: #059669; border: none; white-space: nowrap;">
-                        <i class="bi bi-funnel-fill"></i> Terapkan Filter
-                    </button>
-                    <a href="{{ route('gas-detector.index') }}" class="btn btn-sm btn-light border px-3 fw-semibold text-secondary d-inline-flex align-items-center gap-1" style="white-space: nowrap;">
-                        <i class="bi bi-arrow-counterclockwise"></i> Reset
-                    </a>
+                <!-- Filter Well Pad (Hanya 1 Well Pad dalam satu waktu) -->
+                <div class="filter-col-well-pad">
+                    <label class="filter-input-label">
+                        <i class="bi bi-geo-alt text-primary"></i> Well Pad
+                    </label>
+                    <select name="history_well_pad" id="filterHistoryWellPad" class="form-select form-select-sm">
+                        @foreach($activeWellPads as $pad)
+                            <option value="{{ $pad->name }}" {{ ($historyFilter['well_pad'] ?? '') === $pad->name ? 'selected' : '' }}>
+                                {{ $pad->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Tombol Terapkan & Reset -->
+                <div class="filter-col-actions">
+                    <label class="filter-input-label" style="visibility: hidden;">Aksi</label>
+                    <div class="d-flex gap-2">
+                        <button type="submit" id="btnApplyHistoryFilter" class="btn btn-sm btn-success px-3 fw-semibold d-inline-flex align-items-center gap-1" style="background-color: #059669; border: none; white-space: nowrap;">
+                            <i class="bi bi-funnel-fill"></i> Terapkan Filter
+                        </button>
+                        <button type="button" id="btnResetHistoryFilter" onclick="resetHistoryChartFilter()" class="btn btn-sm btn-light border px-3 fw-semibold text-secondary d-inline-flex align-items-center gap-1" style="white-space: nowrap;">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</form>
+    </form>
+</div>
 
 <!-- ===========================================================================
-     6. TABEL DATA HASIL PENGUKURAN & TOMBOL EKSPOR LAPORAN
+     6. TABEL DATA HASIL PENGUKURAN (SECTION HARI INI & SECTION SEMUA RIWAYAT)
      =========================================================================== -->
-<div class="gas-table-box">
+<!-- 6A. TABEL SECTION HARI INI -->
+<div id="sectionTodayTable" class="gas-table-box {{ ($activeSection ?? 'hari_ini') === 'hari_ini' ? '' : 'd-none' }}">
     <div class="row align-items-center g-2 mb-3">
-        <div class="col-md-5">
+        <div class="col-md-6">
             <h5 class="fw-bold text-dark mb-0" style="font-size: 16px;">
-                Data Gas Monitoring — {{ $formattedPeriodLabel }}
+                Data Gas Monitoring Hari Ini — {{ $todayDisplayLabel }}
             </h5>
         </div>
-        <div class="col-md-7 text-md-end">
+        <div class="col-md-6 text-md-end">
             <div class="d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
-                <!-- Search Box -->
-                <div class="input-group input-group-sm" style="max-width: 240px;">
+                <form method="GET" action="{{ route('gas-detector.index') }}" class="input-group input-group-sm" style="max-width: 260px;">
+                    <input type="hidden" name="section" value="hari_ini">
                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                    <input type="text" id="liveSearchInput" class="form-control border-start-0" placeholder="Cari well pad / tanggal..." value="{{ $searchQuery }}">
-                </div>
+                    <input type="text" name="search_today" id="liveSearchInput" class="form-control border-start-0" placeholder="Cari well pad hari ini..." value="{{ $searchToday ?? '' }}">
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- Tabel Data -->
     <div class="table-responsive">
         <table class="table table-gas align-middle" id="mainGasMonitoringTable">
             <thead>
@@ -1210,47 +1204,24 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($tableRecords as $index => $row)
+                @forelse($todayRecords as $index => $row)
                     @php
                         $coExceeded = ($row->co_level !== null && $row->co_level > 25.0);
                         $o2Exceeded = ($row->o2_level !== null && ($row->o2_level < 19.5 || $row->o2_level > 23.5));
                         $h2sExceeded = ($row->h2s_level !== null && $row->h2s_level > 10.0);
                         $lelExceeded = ($row->lel_level !== null && $row->lel_level > 5.0);
-                        $pressExceeded = false;
                         $isRowExceeded = $coExceeded || $o2Exceeded || $h2sExceeded || $lelExceeded;
                         $hasAnyMeasured = ($row->co_level !== null || $row->o2_level !== null || $row->h2s_level !== null || $row->lel_level !== null);
                     @endphp
                     <tr style="{{ $isRowExceeded ? 'background-color: #fef2f2;' : '' }}">
-                        <td class="text-center text-muted fw-semibold">
-                            {{ $tableRecords->firstItem() + $index }}
-                        </td>
-                        <td class="text-nowrap text-dark">
-                            {{ $row->measurement_date ? $row->measurement_date->format('d/m/Y') : '-' }}
-                        </td>
-                        <td class="fw-bold text-dark">
-                            {{ $row->well_pad }}
-                        </td>
-                        <!-- CO -->
-                        <td class="text-center fw-semibold {{ $coExceeded ? 'text-danger bg-danger-subtle' : '' }}">
-                            {{ $row->co_level !== null ? rtrim(rtrim(number_format($row->co_level, 1, '.', ','), '0'), '.') : '-' }}
-                        </td>
-                        <!-- O2 -->
-                        <td class="text-center fw-semibold {{ $o2Exceeded ? 'text-danger bg-danger-subtle' : '' }}">
-                            {{ $row->o2_level !== null ? rtrim(rtrim(number_format($row->o2_level, 1, '.', ','), '0'), '.') : '-' }}
-                        </td>
-                        <!-- H2S -->
-                        <td class="text-center fw-semibold {{ $h2sExceeded ? 'text-danger bg-danger-subtle' : '' }}">
-                            {{ $row->h2s_level !== null ? rtrim(rtrim(number_format($row->h2s_level, 1, '.', ','), '0'), '.') : '-' }}
-                        </td>
-                        <!-- LEL -->
-                        <td class="text-center fw-semibold {{ $lelExceeded ? 'text-danger bg-danger-subtle' : '' }}">
-                            {{ $row->lel_level !== null ? rtrim(rtrim(number_format($row->lel_level, 1, '.', ','), '0'), '.') : '-' }}
-                        </td>
-                        <!-- Pressure -->
-                        <td class="text-center fw-semibold {{ $pressExceeded ? 'text-danger bg-danger-subtle' : '' }}">
-                            {{ $row->pressure !== null ? rtrim(rtrim(number_format($row->pressure, 1, '.', ','), '0'), '.') : '-' }}
-                        </td>
-                        <!-- Status -->
+                        <td class="text-center text-muted fw-semibold">{{ $todayRecords->firstItem() + $index }}</td>
+                        <td class="text-nowrap text-dark">{{ $row->measurement_date ? $row->measurement_date->format('d/m/Y') : '-' }}</td>
+                        <td class="fw-bold text-dark">{{ $row->well_pad }}</td>
+                        <td class="text-center fw-semibold {{ $coExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->co_level !== null ? rtrim(rtrim(number_format($row->co_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $o2Exceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->o2_level !== null ? rtrim(rtrim(number_format($row->o2_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $h2sExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->h2s_level !== null ? rtrim(rtrim(number_format($row->h2s_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $lelExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->lel_level !== null ? rtrim(rtrim(number_format($row->lel_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold">{{ $row->pressure !== null ? rtrim(rtrim(number_format($row->pressure, 1, '.', ','), '0'), '.') : '-' }}</td>
                         <td class="text-center">
                             @if($isRowExceeded)
                                 <span class="badge-tidaksesuai">Tidak Sesuai</span>
@@ -1260,7 +1231,6 @@
                                 <span class="badge bg-light text-muted border">-</span>
                             @endif
                         </td>
-                        <!-- Aksi -->
                         <td class="text-center">
                             <div class="d-inline-flex gap-1">
                                 <button type="button" class="btn-tbl-action btn-tbl-view" onclick="viewMeasurementDetail({{ $row->id }})" title="Lihat Detail">
@@ -1281,7 +1251,7 @@
                     <tr>
                         <td colspan="10" class="text-center py-4 text-muted">
                             <i class="bi bi-inbox fs-2 d-block mb-1"></i>
-                            Tidak ada data Gas Monitoring pada periode ini.
+                            Belum ada data pengukuran Gas Monitoring pada hari ini ({{ $todayDisplayLabel }}).
                         </td>
                     </tr>
                 @endforelse
@@ -1289,14 +1259,116 @@
         </table>
     </div>
 
-    <!-- Pagination -->
-    @if($tableRecords->hasPages())
+    @if($todayRecords->hasPages())
         <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
             <div class="small text-muted">
-                Menampilkan {{ $tableRecords->firstItem() }} sampai {{ $tableRecords->lastItem() }} dari {{ $tableRecords->total() }} data
+                Menampilkan {{ $todayRecords->firstItem() }} sampai {{ $todayRecords->lastItem() }} dari {{ $todayRecords->total() }} data
             </div>
             <div>
-                {{ $tableRecords->links() }}
+                {{ $todayRecords->appends(['section' => 'hari_ini'])->links() }}
+            </div>
+        </div>
+    @endif
+</div>
+
+<!-- 6B. TABEL SECTION SEMUA RIWAYAT (TIDAK TERPENGARUH FILTER GRAFIK) -->
+<div id="sectionHistoryTable" class="gas-table-box {{ ($activeSection ?? 'hari_ini') === 'semua_riwayat' ? '' : 'd-none' }}">
+    <div class="row align-items-center g-2 mb-3">
+        <div class="col-md-6">
+            <h5 class="fw-bold text-dark mb-0" style="font-size: 16px;">
+                Semua Riwayat Pengukuran Gas Monitoring
+            </h5>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <div class="d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
+                <form method="GET" action="{{ route('gas-detector.index') }}" class="input-group input-group-sm" style="max-width: 260px;">
+                    <input type="hidden" name="section" value="semua_riwayat">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search_history" id="liveSearchHistoryInput" class="form-control border-start-0" placeholder="Cari well pad / tanggal..." value="{{ $searchHistory ?? '' }}">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-gas align-middle" id="historyGasMonitoringTable">
+            <thead>
+                <tr>
+                    <th style="width: 5%;" class="text-center">No</th>
+                    <th style="width: 10%;">Tanggal</th>
+                    <th style="width: 14%;">Well Pad</th>
+                    <th class="text-center" style="width: 10%;">CO (ppm)</th>
+                    <th class="text-center" style="width: 10%;">O₂ (%)</th>
+                    <th class="text-center" style="width: 10%;">H₂S (ppm)</th>
+                    <th class="text-center" style="width: 10%;">LEL (%)</th>
+                    <th class="text-center" style="width: 11%;">Pressure (Psi)</th>
+                    <th class="text-center" style="width: 10%;">Status</th>
+                    <th class="text-center" style="width: 10%;">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($historyTableRecords as $index => $row)
+                    @php
+                        $coExceeded = ($row->co_level !== null && $row->co_level > 25.0);
+                        $o2Exceeded = ($row->o2_level !== null && ($row->o2_level < 19.5 || $row->o2_level > 23.5));
+                        $h2sExceeded = ($row->h2s_level !== null && $row->h2s_level > 10.0);
+                        $lelExceeded = ($row->lel_level !== null && $row->lel_level > 5.0);
+                        $isRowExceeded = $coExceeded || $o2Exceeded || $h2sExceeded || $lelExceeded;
+                        $hasAnyMeasured = ($row->co_level !== null || $row->o2_level !== null || $row->h2s_level !== null || $row->lel_level !== null);
+                    @endphp
+                    <tr style="{{ $isRowExceeded ? 'background-color: #fef2f2;' : '' }}">
+                        <td class="text-center text-muted fw-semibold">{{ $historyTableRecords->firstItem() + $index }}</td>
+                        <td class="text-nowrap text-dark">{{ $row->measurement_date ? $row->measurement_date->format('d/m/Y') : '-' }}</td>
+                        <td class="fw-bold text-dark">{{ $row->well_pad }}</td>
+                        <td class="text-center fw-semibold {{ $coExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->co_level !== null ? rtrim(rtrim(number_format($row->co_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $o2Exceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->o2_level !== null ? rtrim(rtrim(number_format($row->o2_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $h2sExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->h2s_level !== null ? rtrim(rtrim(number_format($row->h2s_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold {{ $lelExceeded ? 'text-danger bg-danger-subtle' : '' }}">{{ $row->lel_level !== null ? rtrim(rtrim(number_format($row->lel_level, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center fw-semibold">{{ $row->pressure !== null ? rtrim(rtrim(number_format($row->pressure, 1, '.', ','), '0'), '.') : '-' }}</td>
+                        <td class="text-center">
+                            @if($isRowExceeded)
+                                <span class="badge-tidaksesuai">Tidak Sesuai</span>
+                            @elseif($hasAnyMeasured)
+                                <span class="badge-sesuai">Sesuai</span>
+                            @else
+                                <span class="badge bg-light text-muted border">-</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            <div class="d-inline-flex gap-1">
+                                <button type="button" class="btn-tbl-action btn-tbl-view" onclick="viewMeasurementDetail({{ $row->id }})" title="Lihat Detail">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                @adminManagement
+                                    <button type="button" class="btn-tbl-action btn-tbl-edit" onclick="editSingleMeasurement({{ $row->id }})" title="Edit Data">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn-tbl-action btn-tbl-del" onclick="deleteMeasurementRecord({{ $row->id }}, '{{ $row->well_pad }}')" title="Hapus Data">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                @endadminManagement
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-1"></i>
+                            Belum ada data riwayat Gas Monitoring.
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    @if($historyTableRecords->hasPages())
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+            <div class="small text-muted">
+                Menampilkan {{ $historyTableRecords->firstItem() }} sampai {{ $historyTableRecords->lastItem() }} dari {{ $historyTableRecords->total() }} data
+            </div>
+            <div>
+                {{ $historyTableRecords->appends(['section' => 'semua_riwayat'])->links() }}
             </div>
         </div>
     @endif
@@ -1656,154 +1728,179 @@
 
 @push('scripts')
 <script>
-const chartRawData = @json($chartData);
-const statsRawData = @json($statisticsData);
-const currentStartDate = "{{ $startDate }}";
-const currentEndDate = "{{ $endDate }}";
-const currentFormattedPeriod = "{{ $formattedPeriodLabel }}";
+const todayChartRawData = @json($chartData);
+const todayStatsRawData = @json($statisticsData);
+const todayDisplayLabel = "{{ $todayDisplayLabel }}";
+
+let historyChartRawData = @json($historyChartData);
+let historyStatsRawData = @json($historyStatisticsData);
+let historyPeriodLabel = "{{ $historyPeriodLabel }}";
+let historyWellPadName = "{{ $historyFilter['well_pad'] ?? '' }}";
+const defaultHistoryMonth = "{{ (int) date('n') }}";
+const defaultHistoryYear = "{{ (int) date('Y') }}";
+const defaultHistoryStartDate = "{{ date('Y-m-01') }}";
+const defaultHistoryEndDate = "{{ date('Y-m-d') }}";
+const defaultHistoryWellPad = "{{ $activeWellPads->first()?->name ?? '' }}";
+
+let activeSection = "{{ $activeSection ?? 'hari_ini' }}";
 let activeParamKey = 'co';
 let gasBarChart = null;
 let wellPadsCache = [];
 
-// Toggler Input Mode Periode Gas Monitoring
-function toggleGasPeriodMode(mode) {
-    const wrapper = document.getElementById('gasPeriodInputWrapper');
-    if (wrapper) {
-        wrapper.style.display = (mode === 'all') ? 'none' : '';
+function getActiveChartRawData() {
+    return activeSection === 'semua_riwayat' ? historyChartRawData : todayChartRawData;
+}
+
+function getActiveStatsRawData() {
+    return activeSection === 'semua_riwayat' ? historyStatsRawData : todayStatsRawData;
+}
+
+// Switch antara Section Hari Ini & Semua Riwayat
+function switchGasSection(section) {
+    if (section !== 'hari_ini' && section !== 'semua_riwayat') {
+        section = 'hari_ini';
+    }
+    activeSection = section;
+
+    const btnToday = document.getElementById('btnSectionHariIni');
+    const btnHistory = document.getElementById('btnSectionSemuaRiwayat');
+    const filterWrap = document.getElementById('gasHistoryFilterWrapper');
+    const todayTable = document.getElementById('sectionTodayTable');
+    const historyTable = document.getElementById('sectionHistoryTable');
+    const hintEl = document.getElementById('sectionModeHint');
+
+    if (btnToday && btnHistory) {
+        if (section === 'hari_ini') {
+            btnToday.className = 'btn btn-sm px-3 fw-semibold rounded-2 btn-success text-white';
+            btnToday.style.backgroundColor = '#059669';
+            btnToday.style.borderColor = '#059669';
+            btnHistory.className = 'btn btn-sm px-3 fw-semibold rounded-2 btn-light text-secondary border-0';
+            btnHistory.style.backgroundColor = '';
+            btnHistory.style.borderColor = '';
+        } else {
+            btnHistory.className = 'btn btn-sm px-3 fw-semibold rounded-2 btn-success text-white';
+            btnHistory.style.backgroundColor = '#059669';
+            btnHistory.style.borderColor = '#059669';
+            btnToday.className = 'btn btn-sm px-3 fw-semibold rounded-2 btn-light text-secondary border-0';
+            btnToday.style.backgroundColor = '';
+            btnToday.style.borderColor = '';
+        }
     }
 
-    const variants = ['daily', 'weekly', 'monthly', 'yearly', 'custom'];
+    if (filterWrap) filterWrap.classList.toggle('d-none', section !== 'semua_riwayat');
+    if (todayTable) todayTable.classList.toggle('d-none', section !== 'hari_ini');
+    if (historyTable) historyTable.classList.toggle('d-none', section !== 'semua_riwayat');
+
+    if (hintEl) {
+        hintEl.innerHTML = section === 'semua_riwayat'
+            ? '<i class="bi bi-graph-up me-1 text-success"></i> Analisis riwayat per Well Pad &amp; seluruh catatan pengukuran'
+            : `<i class="bi bi-activity me-1 text-success"></i> Pemantauan pengukuran hari ini (${todayDisplayLabel})`;
+    }
+
+    initGasBarChart(activeParamKey);
+}
+
+// Toggler Input Mode Periode pada Section Semua Riwayat (Bulanan, Tahunan, Rentang Tanggal)
+function toggleHistoryPeriodMode(mode) {
+    const variants = ['monthly', 'yearly', 'custom'];
     variants.forEach(v => {
-        const el = document.getElementById(`gasPeriod_${v}`);
+        const el = document.getElementById(`gasHistoryPeriod_${v}`);
         if (!el) return;
         if (v === mode) {
-            el.style.display = (v === 'weekly') ? 'flex' : '';
+            el.style.display = (v === 'monthly') ? 'flex' : '';
         } else {
             el.style.display = 'none';
         }
     });
-
-    if (mode === 'weekly') {
-        const weekInput = document.getElementById('filterDateWeekly');
-        if (weekInput) {
-            if (!weekInput.value) {
-                const now = new Date();
-                const yr = now.getFullYear();
-                const mo = String(now.getMonth() + 1).padStart(2, '0');
-                const da = String(now.getDate()).padStart(2, '0');
-                weekInput.value = `${yr}-${mo}-${da}`;
-            }
-            onGasWeeklyDatePick(weekInput.value);
-        }
-    }
 }
 
-function onGasWeeklyDatePick(dateStr) {
-    if (!dateStr) return;
-    const picked = new Date(dateStr + 'T00:00:00');
-    if (isNaN(picked.getTime())) return;
+// Terapkan Filter Grafik Semua Riwayat via AJAX tanpa mengubah 5 kartu & tabel
+async function applyHistoryChartFilter(event) {
+    if (event) event.preventDefault();
 
-    const day = picked.getDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const periodType = document.getElementById('filterHistoryPeriodType')?.value || 'monthly';
+    const wellPad = document.getElementById('filterHistoryWellPad')?.value || defaultHistoryWellPad;
+    const month = document.getElementById('filterHistoryMonth')?.value || defaultHistoryMonth;
+    const year = periodType === 'yearly'
+        ? (document.getElementById('filterHistoryYearOnly')?.value || defaultHistoryYear)
+        : (document.getElementById('filterHistoryYear')?.value || defaultHistoryYear);
+    const startDate = document.getElementById('filterHistoryStartDate')?.value || '';
+    const endDate = document.getElementById('filterHistoryEndDate')?.value || '';
 
-    const monday = new Date(picked);
-    monday.setDate(picked.getDate() + diffToMonday);
-
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-
-    const fmtDisplay = (dt) => {
-        return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    const displayEl = document.getElementById('filterGasWeeklyDisplay');
-    if (displayEl) {
-        displayEl.value = `${fmtDisplay(monday)} - ${fmtDisplay(sunday)}`;
-    }
-}
-
-// Dropdown Multiple Choice Well Pad
-function toggleWpDropdown(e) {
-    e.stopPropagation();
-    const menu = document.getElementById('wpDropdownMenu');
-    if (menu) menu.classList.toggle('show');
-}
-
-document.addEventListener('click', function(e) {
-    const container = document.getElementById('wpDropdownContainer');
-    const menu = document.getElementById('wpDropdownMenu');
-    if (container && menu && !container.contains(e.target)) {
-        menu.classList.remove('show');
-    }
-});
-
-function toggleSelectAllWellPads(isChecked) {
-    document.querySelectorAll('.wp-checkbox').forEach(cb => {
-        cb.checked = isChecked;
-    });
-    updateWpDropdownLabel();
-}
-
-function onIndividualWellPadChange() {
-    const allBoxes = document.querySelectorAll('.wp-checkbox');
-    const checkedBoxes = document.querySelectorAll('.wp-checkbox:checked');
-    const allMaster = document.getElementById('checkAllWellPads');
-
-    if (allMaster) {
-        if (checkedBoxes.length === allBoxes.length) {
-            allMaster.checked = true;
-            allMaster.indeterminate = false;
-        } else if (checkedBoxes.length === 0) {
-            allMaster.checked = false;
-            allMaster.indeterminate = false;
-        } else {
-            allMaster.checked = false;
-            allMaster.indeterminate = true;
-        }
-    }
-    updateWpDropdownLabel();
-}
-
-function updateWpDropdownLabel() {
-    const allBoxes = document.querySelectorAll('.wp-checkbox');
-    const checkedBoxes = Array.from(document.querySelectorAll('.wp-checkbox:checked')).map(cb => cb.value);
-    const labelEl = document.getElementById('wpDropdownText');
-    if (!labelEl) return;
-
-    if (checkedBoxes.length === allBoxes.length || checkedBoxes.length === 0) {
-        labelEl.textContent = checkedBoxes.length === 0 ? 'Pilih Well Pad' : 'Semua Well Pad';
-    } else if (checkedBoxes.length === 1) {
-        labelEl.textContent = checkedBoxes[0];
-    } else {
-        labelEl.textContent = 'Well Pad Terpilih';
-    }
-}
-
-// Validasi Form Date Range
-function validateDateRange() {
-    const allBoxes = document.querySelectorAll('.wp-checkbox');
-    const checkedBoxes = document.querySelectorAll('.wp-checkbox:checked');
-    if (checkedBoxes.length === allBoxes.length) {
-        // Jika semua dipilih, tidak perlu mengirim array well_pad[] agar URL tetap bersih
-        checkedBoxes.forEach(cb => cb.disabled = true);
-    }
-
-    const periodType = document.getElementById('filterPeriodType')?.value || 'daily';
     if (periodType === 'custom') {
-        const start = document.getElementById('filterStartDate')?.value;
-        const end = document.getElementById('filterEndDate')?.value;
-
-        if (!start || !end) {
+        if (!startDate || !endDate) {
             Swal.fire('Validasi Tanggal', 'Harap lengkapi Tanggal Mulai dan Tanggal Akhir.', 'warning');
             return false;
         }
-
-        if (end < start) {
-            Swal.fire('Rentang Tidak Valid', 'Tanggal Akhir tidak boleh lebih awal daripada Tanggal Mulai.', 'error');
+        if (startDate > endDate) {
+            Swal.fire('Rentang Tidak Valid', 'Tanggal Mulai tidak boleh lebih besar daripada Tanggal Akhir.', 'error');
             return false;
         }
     }
-    return true;
+
+    const params = new URLSearchParams({
+        history_period_type: periodType,
+        history_well_pad: wellPad,
+        history_month: month,
+        history_year: year,
+        history_start_date: startDate,
+        history_end_date: endDate,
+    });
+
+    const btn = document.getElementById('btnApplyHistoryFilter');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Memuat...';
+    }
+
+    try {
+        const res = await fetch(`{{ route('gas-detector.history-chart') }}?${params.toString()}`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            Swal.fire('Validasi Filter', data.message || 'Gagal memuat grafik riwayat.', 'warning');
+            return false;
+        }
+
+        historyChartRawData = data.chartData;
+        historyStatsRawData = data.statisticsData;
+        historyPeriodLabel = data.periodLabel;
+        historyWellPadName = data.wellPadName;
+
+        initGasBarChart(activeParamKey);
+    } catch (err) {
+        console.error('Gagal memuat grafik riwayat:', err);
+        Swal.fire('Error', 'Terjadi kesalahan saat memuat data grafik riwayat.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+    return false;
+}
+
+function resetHistoryChartFilter() {
+    const typeEl = document.getElementById('filterHistoryPeriodType');
+    const monthEl = document.getElementById('filterHistoryMonth');
+    const yearEl = document.getElementById('filterHistoryYear');
+    const yearOnlyEl = document.getElementById('filterHistoryYearOnly');
+    const startEl = document.getElementById('filterHistoryStartDate');
+    const endEl = document.getElementById('filterHistoryEndDate');
+    const wpEl = document.getElementById('filterHistoryWellPad');
+
+    if (typeEl) typeEl.value = 'monthly';
+    if (monthEl) monthEl.value = defaultHistoryMonth;
+    if (yearEl) yearEl.value = defaultHistoryYear;
+    if (yearOnlyEl) yearOnlyEl.value = defaultHistoryYear;
+    if (startEl) startEl.value = defaultHistoryStartDate;
+    if (endEl) endEl.value = defaultHistoryEndDate;
+    if (wpEl && defaultHistoryWellPad) wpEl.value = defaultHistoryWellPad;
+
+    toggleHistoryPeriodMode('monthly');
+    applyHistoryChartFilter();
 }
 
 // Threshold Line Plugin untuk Chart.js
@@ -1853,18 +1950,18 @@ const horizontalThresholdPlugin = {
             }
         }
 
-        // Gambar Nilai di Atas Setiap Batang (Presisi sesuai Gambar Referensi 3)
+        // Gambar Nilai di Atas Setiap Batang / Titik
         chart.data.datasets.forEach((dataset, i) => {
             const meta = chart.getDatasetMeta(i);
-            meta.data.forEach((bar, index) => {
+            meta.data.forEach((point, index) => {
                 const val = dataset.data[index];
-                if (val !== null && val !== undefined) {
+                if (val !== null && val !== undefined && !isNaN(val)) {
                     ctx.save();
-                    ctx.font = 'bold 12px sans-serif';
+                    ctx.font = 'bold 11.5px sans-serif';
                     ctx.fillStyle = '#1e293b';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
-                    ctx.fillText(val, bar.x, bar.y - 6);
+                    ctx.fillText(val, point.x, point.y - 6);
                     ctx.restore();
                 }
             });
@@ -1879,23 +1976,26 @@ document.addEventListener('DOMContentLoaded', function() {
     initLiveSearch();
 });
 
-// Inisialisasi Grafik Batang
+// Inisialisasi Grafik (Bar untuk Hari Ini, Line dengan jeda null untuk Semua Riwayat)
 function initGasBarChart(paramKey) {
     activeParamKey = paramKey;
     const canvas = document.getElementById('gasBarChartCanvas');
     if (!canvas) return;
 
-    const dataObj = chartRawData[paramKey] || { data: [], colors: [] };
-    const labels = chartRawData.labels || [];
+    const currentChartData = getActiveChartRawData();
+    const isHistoryMode = (activeSection === 'semua_riwayat');
+    const dataObj = currentChartData[paramKey] || { data: [], colors: [], dates: [] };
+    const labels = currentChartData.labels || [];
     const noDataAlert = document.getElementById('noDataAlert');
 
-    if (labels.length === 0 || dataObj.data.length === 0) {
+    const numericValues = (dataObj.data || []).filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (labels.length === 0 || numericValues.length === 0) {
         if (noDataAlert) noDataAlert.classList.remove('d-none');
     } else {
         if (noDataAlert) noDataAlert.classList.add('d-none');
     }
 
-    let maxVal = Math.max(...dataObj.data, 10);
+    let maxVal = numericValues.length > 0 ? Math.max(...numericValues, 10) : 10;
     if (paramKey === 'co') maxVal = Math.max(maxVal, 30);
     if (paramKey === 'o2') maxVal = 25;
     if (paramKey === 'h2s') maxVal = Math.max(maxVal, 15);
@@ -1908,18 +2008,36 @@ function initGasBarChart(paramKey) {
 
     const isGasMobile = window.innerWidth < 576;
     const ctx = canvas.getContext('2d');
+
+    const datasetConfig = isHistoryMode
+        ? {
+            data: dataObj.data,
+            borderColor: '#059669',
+            backgroundColor: 'rgba(5, 150, 105, 0.08)',
+            borderWidth: 2.5,
+            tension: 0.2,
+            fill: false,
+            spanGaps: false,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: dataObj.colors,
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 1.5,
+        }
+        : {
+            data: dataObj.data,
+            backgroundColor: dataObj.colors,
+            borderRadius: 4,
+            barPercentage: 0.65,
+            categoryPercentage: 0.72,
+            maxBarThickness: 48,
+        };
+
     gasBarChart = new Chart(ctx, {
-        type: 'bar',
+        type: isHistoryMode ? 'line' : 'bar',
         data: {
             labels: labels,
-            datasets: [{
-                data: dataObj.data,
-                backgroundColor: dataObj.colors,
-                borderRadius: 4,
-                barPercentage: 0.65,
-                categoryPercentage: 0.72,
-                maxBarThickness: 48,
-            }]
+            datasets: [datasetConfig]
         },
         options: {
             responsive: true,
@@ -1937,8 +2055,23 @@ function initGasBarChart(paramKey) {
                 activeParamKey: paramKey,
                 tooltip: {
                     callbacks: {
+                        title: function(items) {
+                            if (!items || !items.length) return '';
+                            const idx = items[0].dataIndex;
+                            if (isHistoryMode) {
+                                const dtLabel = (dataObj.dates && dataObj.dates[idx]) ? dataObj.dates[idx] : items[0].label;
+                                return `${historyWellPadName || currentChartData.well_pad || ''} (${items[0].label}) — ${dtLabel}`;
+                            }
+                            return items[0].label;
+                        },
                         label: function(context) {
-                            return ` Rata-rata: ${context.raw} ${dataObj.unit || ''}`;
+                            if (context.raw === null || context.raw === undefined) {
+                                return ' Tidak ada data pengukuran';
+                            }
+                            const prefix = isHistoryMode
+                                ? (currentChartData.period_type === 'yearly' ? 'Nilai Terburuk: ' : 'Pengukuran: ')
+                                : 'Nilai: ';
+                            return ` ${prefix}${context.raw} ${dataObj.unit || ''}`;
                         }
                     }
                 }
@@ -1965,7 +2098,7 @@ function initGasBarChart(paramKey) {
                         autoSkip: isGasMobile,
                         maxTicksLimit: isGasMobile ? 6 : undefined,
                         maxRotation: isGasMobile ? 30 : 0,
-                        font: { size: isGasMobile ? 10 : 11.5, weight: 'bold' },
+                        font: { size: isGasMobile ? 10 : 11, weight: 'bold' },
                         color: '#1e293b'
                     }
                 }
@@ -2009,7 +2142,10 @@ function switchChartParam(paramKey) {
 }
 
 function updateChartLabelsAndSidebar(paramKey) {
-    const titlePeriod = currentFormattedPeriod;
+    const isHistoryMode = (activeSection === 'semua_riwayat');
+    const titlePeriod = isHistoryMode
+        ? `${historyWellPadName || 'Well Pad'} — ${historyPeriodLabel}`
+        : `per Well Pad — ${todayDisplayLabel}`;
     const headerTitle = document.getElementById('chartHeaderTitle');
     const threshBadge = document.getElementById('chartThresholdBadge');
 
@@ -2021,7 +2157,8 @@ function updateChartLabelsAndSidebar(paramKey) {
     const wrapThreshold = document.getElementById('legendWrapThreshold');
 
     // Update kotak sederetan tab: Rata-rata & Tertinggi (Khusus O2: Terendah)
-    const s = statsRawData[paramKey] || {};
+    const activeStats = getActiveStatsRawData();
+    const s = activeStats[paramKey] || {};
     const unitMap = { 'co': 'ppm', 'o2': '%', 'h2s': 'ppm', 'lel': '%', 'pressure': 'Psi' };
     const uStr = unitMap[paramKey] || '';
 
@@ -2061,7 +2198,7 @@ function updateChartLabelsAndSidebar(paramKey) {
     }
 
     if (paramKey === 'pressure') {
-        if (headerTitle) headerTitle.textContent = `Grafik Pressure per Well Pad — ${titlePeriod}`;
+        if (headerTitle) headerTitle.textContent = `Grafik Pressure ${titlePeriod}`;
         if (threshBadge) threshBadge.textContent = '';
         if (legSesuai) legSesuai.textContent = 'Nilai Pressure (Psi)';
         if (wrapWarning) wrapWarning.classList.add('d-none');
@@ -2075,25 +2212,25 @@ function updateChartLabelsAndSidebar(paramKey) {
     if (wrapThreshold) wrapThreshold.classList.remove('d-none');
 
     if (paramKey === 'co') {
-        if (headerTitle) headerTitle.textContent = `Grafik CO per Well Pad — ${titlePeriod}`;
+        if (headerTitle) headerTitle.textContent = `Grafik CO ${titlePeriod}`;
         if (threshBadge) threshBadge.textContent = 'Threshold 25 ppm';
         if (legSesuai) legSesuai.textContent = 'Sesuai (≤ 25 ppm)';
         if (legTidakSesuai) legTidakSesuai.textContent = 'Tidak Sesuai (> 25 ppm)';
         if (legThreshold) legThreshold.textContent = 'Threshold (25 ppm)';
     } else if (paramKey === 'o2') {
-        if (headerTitle) headerTitle.textContent = `Grafik O₂ per Well Pad — ${titlePeriod}`;
+        if (headerTitle) headerTitle.textContent = `Grafik O₂ ${titlePeriod}`;
         if (threshBadge) threshBadge.textContent = 'Threshold 19.5 – 23.5 %';
         if (legSesuai) legSesuai.textContent = 'Sesuai (19.5 - 23.5 %)';
         if (legTidakSesuai) legTidakSesuai.textContent = 'Tidak Sesuai (< 19.5 atau > 23.5 %)';
         if (legThreshold) legThreshold.textContent = 'Threshold (19.5 – 23.5 %)';
     } else if (paramKey === 'h2s') {
-        if (headerTitle) headerTitle.textContent = `Grafik H₂S per Well Pad — ${titlePeriod}`;
+        if (headerTitle) headerTitle.textContent = `Grafik H₂S ${titlePeriod}`;
         if (threshBadge) threshBadge.textContent = 'Threshold 10 ppm';
         if (legSesuai) legSesuai.textContent = 'Sesuai (≤ 10 ppm)';
         if (legTidakSesuai) legTidakSesuai.textContent = 'Tidak Sesuai (> 10 ppm)';
         if (legThreshold) legThreshold.textContent = 'Threshold (10 ppm)';
     } else if (paramKey === 'lel') {
-        if (headerTitle) headerTitle.textContent = `Grafik LEL per Well Pad — ${titlePeriod}`;
+        if (headerTitle) headerTitle.textContent = `Grafik LEL ${titlePeriod}`;
         if (threshBadge) threshBadge.textContent = 'Threshold 5 %';
         if (legSesuai) legSesuai.textContent = 'Sesuai (≤ 5 %)';
         if (legTidakSesuai) legTidakSesuai.textContent = 'Tidak Sesuai (> 5 %)';
@@ -2102,21 +2239,21 @@ function updateChartLabelsAndSidebar(paramKey) {
 }
 
 function initLiveSearch() {
-    const input = document.getElementById('liveSearchInput');
-    if (!input) return;
-
-    input.addEventListener('keyup', function() {
-        const filter = input.value.toLowerCase();
-        const rows = document.querySelectorAll('#mainGasMonitoringTable tbody tr');
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            if (text.includes(filter)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
+    const bindTableSearch = (inputId, tableSelector) => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.addEventListener('keyup', function() {
+            const filter = input.value.toLowerCase();
+            const rows = document.querySelectorAll(`${tableSelector} tbody tr`);
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
         });
-    });
+    };
+
+    bindTableSearch('liveSearchInput', '#mainGasMonitoringTable');
+    bindTableSearch('liveSearchHistoryInput', '#historyGasMonitoringTable');
 }
 
 function resetBatchForm() {
@@ -2652,11 +2789,11 @@ function deleteMeasurementRecord(id, wellPad) {
         }
     });
 }
-// Inisialisasi Tampilan Periode pada Form Load
+// Inisialisasi Tampilan Periode Riwayat pada Form Load
 document.addEventListener('DOMContentLoaded', function () {
-    const periodTypeSelect = document.getElementById('filterPeriodType');
+    const periodTypeSelect = document.getElementById('filterHistoryPeriodType');
     if (periodTypeSelect) {
-        toggleGasPeriodMode(periodTypeSelect.value);
+        toggleHistoryPeriodMode(periodTypeSelect.value);
     }
 });
 </script>
